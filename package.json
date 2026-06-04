@@ -1,6 +1,6 @@
 {
     "name": "@stackql/docusaurus-plugin-structured-data",
-    "version": "1.3.2",
+    "version": "1.5.0",
     "description": "A plugin which adds structured data to your docusaurus site.",
     "main": "src/index.js",
     "publishConfig": {
@@ -14,7 +14,7 @@
     },
     "repository": {
       "type": "git",
-      "url": "git+https://github.com/stackql/docusaurus-plugin-structured-data"
+      "url": "git+https://github.com/stackql-labs/docusaurus-plugin-structured-data"
     },
     "keywords": [
       "docusaurus",
@@ -26,7 +26,7 @@
     "author": "Jeffrey Aven @ StackQL Studios",
     "license": "MIT",
     "bugs": {
-      "url": "https://github.com/stackql/docusaurus-plugin-structured-data/issues"
+      "url": "https://github.com/stackql-labs/docusaurus-plugin-structured-data/issues"
     },
-    "homepage": "https://github.com/stackql/docusaurus-plugin-structured-data#readme"
+    "homepage": "https://github.com/stackql-labs/docusaurus-plugin-structured-data#readme"
   }

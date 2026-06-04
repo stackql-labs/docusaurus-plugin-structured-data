@@ -160,7 +160,6 @@ structuredData: {
       postalCode: '3001',
       streetAddress: 'Level 24, 570 Bourke Street, Melbourne, Victoria',
     },
-    duns: '750469226',
     taxID: 'ABN 65 656 147 054',
   },
   website: {
@@ -185,3 +184,347 @@ structuredData: {
   }
 },
 ```
+
+> If your organization is a `LocalBusiness` or one of its subtypes (e.g.
+> `Store`, `Restaurant`), set `'@type': 'LocalBusiness'` (or the specific
+> subtype) inside your `organization` config block. Properties like
+> `duns`, `currenciesAccepted`, `paymentAccepted`, and `priceRange` are
+> defined on `LocalBusiness` (not on `Organization`) and only become
+> schema.org-valid once `@type` is narrowed. `taxID` is valid on
+> `Organization` itself and works without changing `@type`.
+
+## AEO / Answer Engine Optimization
+
+As of __1.4.0__ this plugin emits structured data that AI search surfaces
+(Google AI Overviews, Perplexity, ChatGPT search, Claude web tools) consume
+in addition to the classic SEO entities. All AEO features are __opt-in__
+except `speakable`, which is added to every `WebPage` node by default and can
+be turned off globally or per-page.
+
+### What each schema is for
+
+| Schema | What it does | Where it shows up |
+|---|---|---|
+| `FAQPage` | Marks a list of question/answer pairs as the page's main content | AI Overviews answer cards, Perplexity citations, voice answer extraction |
+| `HowTo` | Marks a sequence of steps to complete a task | AI Overviews step-by-step cards, voice walkthroughs |
+| `TechArticle` | Same as `Article` but signals a technical/documentation context | Better grounding for ChatGPT / Claude search when answering API or tooling questions |
+| `SoftwareApplication` | Identifies a page as describing an installable tool / CLI / library | Knowledge-panel-style cards in AI surfaces, version / OS metadata for install pages |
+| `SpeakableSpecification` | Tells voice assistants which parts of the page to read aloud | Google Assistant, smart-speaker answer extraction |
+| `mainEntity` linking | Connects the primary entity (`Article` / `TechArticle` / `WebPage`) to the secondary entity (`FAQPage` / `HowTo` / `SoftwareApplication`) in a single `@graph` | Lets crawlers treat the page as one coherent unit instead of disconnected nodes |
+
+### How frontmatter reaches the plugin
+
+As of __1.5.0__ the plugin reads page frontmatter directly via Docusaurus's
+`allContentLoaded` lifecycle hook. The plugin captures `frontMatter` for
+every doc, blog post, and MDX page (keyed by permalink) and consults it
+during `postBuild` when emitting structured data for each route. No MDX or
+theme changes are required - if your page has a frontmatter block, the
+plugin sees it.
+
+Two alternative delivery paths from 1.4.x remain supported and continue to
+work alongside the frontmatter path:
+
+- `<script type="application/json" data-aeo-faq>` / `data-aeo-howto` /
+  `data-aeo-software` blocks injected via MDX, for cases where editing
+  frontmatter is awkward (e.g. programmatically generated MDX, pages
+  outside the content-docs / content-blog plugins).
+- `<meta name="aeo:proficiencyLevel">`, `<meta name="aeo:dependencies">`,
+  `<meta name="aeo:speakable" content="false">` set via a page-level
+  `<Head>` component.
+
+When frontmatter and the legacy path both declare the same schema for the
+same page, __frontmatter wins__ and the plugin emits a verbose log entry
+naming the duplicate.
+
+### Configuring TechArticle route prefixes
+
+By default, routes under `/docs/*` emit `TechArticle` (in place of generic
+`Article`). To extend this to additional surfaces - for example, a curated
+`/ai/*` content tree intended for AI retrieval - set
+`techArticleRoutePrefixes` in `themeConfig.structuredData`:
+
+```js
+themeConfig: {
+  structuredData: {
+    techArticleRoutePrefixes: ['/docs/', '/ai/'],
+    // ...
+  }
+}
+```
+
+Rules:
+
+- Each prefix must start and end with `/`. A misshaped prefix throws at
+  plugin construction time with a clear error.
+- A route matches a prefix iff `route.startsWith(prefix)`. A landing route
+  like `/docs` or `/ai` (no trailing slash) does __not__ match `/docs/` or
+  `/ai/` and stays a plain `WebPage`. This matches 1.4.x semantics for
+  the docs landing page.
+- Setting an empty array (`techArticleRoutePrefixes: []`) opts out of
+  `TechArticle` entirely. Pages under `/docs/*` will then emit no article
+  node unless their `og:type` is `article`, in which case they emit
+  generic `Article`.
+- Unset means default (`['/docs/']`).
+
+### Frontmatter-driven structured data
+
+This is the preferred path as of 1.5.0. Declare the AEO fields in the
+normal Markdown / MDX frontmatter block at the top of your page:
+
+```yaml
+---
+title: What is StackQL?
+description: StackQL is a SQL query runtime for cloud and SaaS APIs.
+proficiencyLevel: Beginner
+dependencies: stackql >= 0.6
+faq:
+  - question: Is StackQL a database?
+    answer: No. StackQL is a query runtime that translates SQL into provider API calls.
+  - question: Does StackQL replace Terraform?
+    answer: Not directly. StackQL is for querying and mutating cloud state; Terraform is for declaring desired state.
+howTo:
+  name: Install StackQL on macOS
+  totalTime: PT2M
+  steps:
+    - name: Install via Homebrew
+      text: Run "brew install stackql" in a terminal.
+    - name: Verify
+      text: Run "stackql --version" and confirm the version prints.
+softwareApplication:
+  applicationCategory: DeveloperApplication
+  operatingSystem: macOS, Linux, Windows
+  featureList:
+    - SQL queries against cloud and SaaS providers
+    - Embeddable in CI pipelines
+speakable:
+  cssSelector:
+    - h1
+    - .lead
+    - "[data-speakable]"
+---
+```
+
+Field reference:
+
+| Frontmatter field | Type | Effect |
+|---|---|---|
+| `faq` | array of `{question, answer}` | Emits `FAQPage` node, links from primary entity via `mainEntity` |
+| `howTo` | `{name, totalTime?, estimatedCost?, description?, steps: [{name, text, url?, image?}]}` | Emits `HowTo` node |
+| `softwareApplication` | `true` or object with `applicationCategory?`, `applicationSubCategory?`, `operatingSystem?`, `featureList?`, `softwareVersion?`, `downloadUrl?`, `offers?` | Emits `SoftwareApplication` node |
+| `proficiencyLevel` | `"Beginner"` \| `"Intermediate"` \| `"Expert"` | Added to `TechArticle` node (only fires on TechArticle routes) |
+| `dependencies` | string | Added to `TechArticle` node |
+| `speakable` | `false` or `{cssSelector?, xpath?}` | `false` opts the page out; object overrides the default selectors |
+
+`softwareApplication: true` is the bare opt-in idiom - emits a
+`SoftwareApplication` node with just the page title as the name, useful when
+all the metadata lives elsewhere or you only need the schema marker.
+
+The previously-documented `<script type='application/json'>` and
+`<meta name='aeo:...'>` paths remain supported; use whichever fits your
+workflow. Frontmatter is the cleaner of the two for net-new content.
+
+### Legacy: in-MDX `<script>` block path
+
+Equivalent to the frontmatter path above but injected at the MDX level
+instead of declared in the frontmatter block. Use this when frontmatter is
+not available or convenient.
+
+__FAQPage__ (in an MDX page):
+
+```mdx
+<script type="application/json" data-aeo-faq>
+{`[
+  {
+    "question": "How do I install stackql?",
+    "answer": "Run brew install stackql on macOS, or download the latest release from GitHub for Linux and Windows."
+  },
+  {
+    "question": "Does stackql require a database?",
+    "answer": "No. stackql uses an embedded SQL engine by default and does not require any external database."
+  }
+]`}
+</script>
+```
+
+(The `{`...`}` wrapper is MDX-required to pass the JSON string through verbatim
+without MDX trying to interpret the curly braces.)
+
+__HowTo__:
+
+```mdx
+<script type="application/json" data-aeo-howto>
+{`{
+  "name": "Install stackql on macOS",
+  "totalTime": "PT2M",
+  "steps": [
+    { "name": "Install via Homebrew", "text": "Run 'brew install stackql' in a terminal." },
+    { "name": "Verify the install", "text": "Run 'stackql --version' and confirm the version prints." }
+  ]
+}`}
+</script>
+```
+
+__TechArticle__ (`/docs/*` routes, automatic - no payload needed). Optional
+metadata via head tags in `docusaurus.config.js` or a page-level `<Head>`:
+
+```mdx
+import Head from '@docusaurus/Head';
+
+<Head>
+  <meta name="aeo:proficiencyLevel" content="Intermediate" />
+  <meta name="aeo:dependencies" content="stackql >= 0.6, Python 3.10" />
+</Head>
+```
+
+Valid `proficiencyLevel` values per schema.org: `Beginner`, `Intermediate`,
+`Expert`.
+
+__SoftwareApplication__:
+
+```mdx
+<script type="application/json" data-aeo-software>
+{`{
+  "name": "stackql",
+  "applicationCategory": "DeveloperApplication",
+  "applicationSubCategory": "CLI",
+  "operatingSystem": "macOS, Linux, Windows",
+  "softwareVersion": "0.7.0",
+  "downloadUrl": "https://github.com/stackql/stackql/releases/latest",
+  "featureList": [
+    "SQL queries against cloud and SaaS providers",
+    "Provider-agnostic IaC introspection",
+    "Embeddable in CI pipelines"
+  ]
+}`}
+</script>
+```
+
+__SpeakableSpecification__ - emitted by default on every `WebPage` node with
+selectors `["h1", "article p:first-of-type", "[data-speakable]"]`. Override
+globally:
+
+```js
+themeConfig: {
+  structuredData: {
+    speakable: {
+      cssSelector: ['h1', '.lead', '[data-speakable]'],
+    },
+    // ...
+  }
+}
+```
+
+Or with xpath:
+
+```js
+speakable: {
+  xpath: ['/html/head/title', "//*[@data-speakable]"],
+}
+```
+
+Opt out globally with `speakable: false`, or per-page with a head tag:
+
+```mdx
+<Head>
+  <meta name="aeo:speakable" content="false" />
+</Head>
+```
+
+### Graph linking
+
+When a page emits a secondary entity (`FAQPage`, `HowTo`, or
+`SoftwareApplication`), the primary entity's `mainEntity` is set to the
+secondary's `@id`. Priority when more than one secondary is present:
+`HowTo` -> `FAQPage` -> `SoftwareApplication`. For `/docs/*` and `/blog/*`
+the primary is the article (`TechArticle` or `Article`). For non-article
+routes the primary is the `WebPage` node.
+
+### Worked example
+
+A hypothetical `/docs/install/macos` page declaring both an FAQ and a
+`SoftwareApplication` payload, with the default `speakable` and the
+automatic `TechArticle` classification, produces a `@graph` of the
+following shape (abbreviated for clarity):
+
+```json
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "TechArticle",
+      "@id": "https://stackql.io/docs/install/macos/#article",
+      "isPartOf": { "@type": "WebPage", "@id": "https://stackql.io/docs/install/macos/#webpage" },
+      "headline": "Install stackql on macOS",
+      "mainEntityOfPage": { "@id": "https://stackql.io/docs/install/macos/#webpage" },
+      "mainEntity": { "@id": "https://stackql.io/docs/install/macos/#faq" },
+      "proficiencyLevel": "Beginner",
+      "dependencies": "Homebrew",
+      "image": { "@id": "https://stackql.io/docs/install/macos/#primaryimage" },
+      "publisher": { "@id": "https://stackql.io/#organization" },
+      "articleSection": ["Documentation"],
+      "inLanguage": "en-US"
+    },
+    {
+      "@type": "WebPage",
+      "@id": "https://stackql.io/docs/install/macos/#webpage",
+      "url": "https://stackql.io/docs/install/macos",
+      "isPartOf": { "@id": "https://stackql.io/#website" },
+      "breadcrumb": { "@id": "https://stackql.io/docs/install/macos/#breadcrumb" },
+      "speakable": {
+        "@type": "SpeakableSpecification",
+        "cssSelector": ["h1", "article p:first-of-type", "[data-speakable]"]
+      }
+    },
+    { "@type": "ImageObject", "@id": "https://stackql.io/docs/install/macos/#primaryimage", "...": "..." },
+    {
+      "@type": "BreadcrumbList",
+      "@id": "https://stackql.io/docs/install/macos/#breadcrumb",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://stackql.io" },
+        { "@type": "ListItem", "position": 2, "name": "Documentation", "item": "https://stackql.io/docs" },
+        { "@type": "ListItem", "position": 3, "name": "install - Install stackql on macOS" }
+      ]
+    },
+    { "@type": "WebSite", "@id": "https://stackql.io/#website", "...": "..." },
+    { "@type": "Organization", "@id": "https://stackql.io/#organization", "...": "..." },
+    {
+      "@type": "FAQPage",
+      "@id": "https://stackql.io/docs/install/macos/#faq",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "@id": "https://stackql.io/docs/install/macos/#faq-q-0",
+          "name": "How do I install stackql?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Run brew install stackql ..." }
+        }
+      ]
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://stackql.io/docs/install/macos/#softwareapplication",
+      "name": "stackql",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "macOS, Linux, Windows",
+      "softwareVersion": "0.7.0",
+      "featureList": ["SQL queries against cloud and SaaS providers", "..."]
+    }
+  ]
+}
+```
+
+Note the `@id` chain: `TechArticle.mainEntity` -> `FAQPage.@id`,
+`TechArticle.isPartOf` -> `WebPage.@id`, `WebPage.breadcrumb` ->
+`BreadcrumbList.@id`, `WebPage.isPartOf` -> `WebSite.@id`,
+`WebSite.publisher` -> `Organization.@id`. Every link resolves inside the
+same `@graph`.
+
+### Validation
+
+Malformed `faq`, `howTo`, or `softwareApplication` payloads throw at build
+time with the route, field path, and expected shape - for example:
+
+```
+[docusaurus-plugin-structured-data] route "/docs/install/macos": faq[1].answer must be a non-empty string
+```
+
+so you find out at `yarn build` rather than at Google's Rich Results Test.
