@@ -377,9 +377,18 @@ module.exports = function (context) {
     },
 
     async postBuild({siteConfig = {}, routesPaths = [], outDir}) {
+        // routesPaths include siteConfig.baseUrl, but the build output tree
+        // is rooted at the baseUrl (outDir/route-minus-baseUrl). On sites
+        // with a non-root baseUrl the two differ; strip the prefix before
+        // resolving files or every route silently misses its HTML.
+        const siteBaseUrl = siteConfig.baseUrl || '/';
         routesPaths.map((route) => {
 
-            if (isSkippedRoute(route)) {
+            const outputRoute = route.startsWith(siteBaseUrl)
+                ? `/${route.slice(siteBaseUrl.length)}`
+                : route;
+
+            if (isSkippedRoute(outputRoute)) {
                 return;
             }
 
@@ -392,11 +401,11 @@ module.exports = function (context) {
             // siteConfig.trailingSlash keeps this robust to Docusaurus 3's
             // per-page frontmatter overrides.
             let filePath;
-            if (route === '/') {
+            if (outputRoute === '/') {
                 filePath = path.join(outDir, 'index.html');
             } else {
-                const flatPath = path.join(outDir, `${route}.html`);
-                const dirIndexPath = path.join(outDir, route, 'index.html');
+                const flatPath = path.join(outDir, `${outputRoute}.html`);
+                const dirIndexPath = path.join(outDir, outputRoute, 'index.html');
                 if (fs.existsSync(flatPath)) {
                     filePath = flatPath;
                     verbose ? console.log(`route: ${route} -> flat file ${flatPath}`): null;
@@ -417,7 +426,7 @@ module.exports = function (context) {
             JSDOM.fromFile(filePath).then(dom => {
                 verbose ? console.log(`processing route: ${route}...`): null;
 
-                if (structuredData.excludedRoutes.includes(route)){
+                if ((structuredData.excludedRoutes || []).includes(route)){
                     verbose ? console.log(`route: ${route} is excluded`): null;
                     return;
                 }

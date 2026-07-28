@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.5.1
+
+Patch release fixing JSON-LD emission on sites with a non-root `baseUrl`.
+
+Fixed:
+
+- `postBuild` resolved built HTML files by joining `outDir` with the route
+  path, but Docusaurus route paths include `siteConfig.baseUrl` while the
+  build output tree is rooted at the baseUrl. On sites with a non-root
+  `baseUrl` (e.g. `/docs/query-library/` on query-library.stackql.io) every
+  route missed its HTML file and the plugin silently emitted nothing. The
+  baseUrl prefix is now stripped before file resolution. Sites with
+  `baseUrl: '/'` are unaffected.
+- The built-in skip list (`/tags`, `/search`, `/404.html`, pagination
+  routes) now matches baseUrl-relative routes, so tag/search pages are
+  skipped on non-root-baseUrl sites too. `excludedRoutes` and
+  `techArticleRoutePrefixes` still match the full public route path
+  (including baseUrl), unchanged.
+- `excludedRoutes` is now optional (defaults to `[]`); previously omitting
+  it crashed `postBuild` once a route resolved.
+
 ## 1.5.0
 
 Minor release adding three closely-related capabilities driven by a new
