@@ -248,6 +248,48 @@ function collectFrontmatter(allContent, verbose) {
     return map;
 }
 
+// Collect the content-blog instances Docusaurus loaded, so blog routes are
+// recognised by instance base path rather than by a hardcoded "/blog"
+// prefix. A site may run several instances (e.g. /blog/product and
+// /blog/providers) or mount one somewhere other than /blog. Base paths are
+// stored relative to siteConfig.baseUrl, matching the routes postBuild
+// resolves files for. Longest base path first, so /blog/product wins over
+// /blog when both exist.
+function collectBlogInstances(allContent, siteBaseUrl, verbose) {
+    const instances = [];
+    const blogContent = allContent && allContent['docusaurus-plugin-content-blog'];
+    if (!blogContent) return instances;
+
+    for (const [id, instance] of Object.entries(blogContent)) {
+        if (!instance) continue;
+        const firstListPage = Array.isArray(instance.blogListPaginated) ? instance.blogListPaginated[0] : null;
+        let basePath = firstListPage && firstListPage.metadata && firstListPage.metadata.permalink;
+        if (typeof basePath !== 'string' && typeof instance.blogTagsListPath === 'string') {
+            // empty instance: no list page yet, but the tags path is always set
+            basePath = instance.blogTagsListPath.replace(/\/tags\/?$/, '');
+        }
+        if (typeof basePath !== 'string') continue;
+        if (basePath.startsWith(siteBaseUrl)) {
+            basePath = `/${basePath.slice(siteBaseUrl.length)}`;
+        }
+        basePath = normalizePermalink(basePath);
+        // An instance mounted at the site root would claim every route;
+        // leave those sites to the generic breadcrumb logic.
+        if (!basePath || basePath === '/') continue;
+        instances.push({
+            id,
+            basePath,
+            title: typeof instance.blogTitle === 'string' ? instance.blogTitle : null,
+        });
+    }
+    instances.sort((a, b) => b.basePath.length - a.basePath.length);
+    if (verbose) {
+        const summary = instances.map((i) => `${i.id} -> ${i.basePath}`).join(', ') || 'none';
+        console.log(`[structured-data] blog instances: ${summary}`);
+    }
+    return instances;
+}
+
 module.exports = function (context) {
     const {siteConfig} = context;
     const {themeConfig} = siteConfig;
@@ -275,6 +317,7 @@ module.exports = function (context) {
     // Populated by allContentLoaded, read by postBuild. Same plugin instance
     // sees both hooks via this closure, so no separate state plumbing needed.
     let frontmatterByPermalink = new Map();
+    let blogInstances = [];
 
     // need to build inverted index as the "name" property is not always populated for blog articles
     verbose ? console.log(`building inverted index for authors...`): null;
@@ -340,6 +383,26 @@ module.exports = function (context) {
     const defaultDatePublished = (structuredData.webpage && structuredData.webpage.datePublished) || null;
     const skipRoutes = new Set(['/404.html', '/search']);
 
+    // The blog instance (if any) whose base path owns this baseUrl-relative
+    // route: the list page itself, a post, or a tags/page/archive route.
+    function findBlogInstance(route) {
+        const normalized = normalizePermalink(route);
+        for (const instance of blogInstances) {
+            if (normalized === instance.basePath || normalized.startsWith(`${instance.basePath}/`)) {
+                return instance;
+            }
+        }
+        return null;
+    }
+
+    // Tag and pagination routes of any blog instance: list pages, not content.
+    function isBlogUtilityRoute(route) {
+        const instance = findBlogInstance(route);
+        if (!instance) return false;
+        const rest = normalizePermalink(route).slice(instance.basePath.length);
+        return rest === '/tags' || rest.startsWith('/tags/') || rest.startsWith('/page/');
+    }
+
     function isSkippedRoute(route) {
         if (
             route === '/tags' ||
@@ -351,6 +414,9 @@ module.exports = function (context) {
         ) {
             return true;
         }
+        if (isBlogUtilityRoute(route)) {
+            return true;
+        }
         return skipRoutes.has(route);
     }
 
@@ -358,12 +424,14 @@ module.exports = function (context) {
         return techArticleRoutePrefixes.some((prefix) => route.startsWith(prefix));
     }
 
+    const breadcrumbLabelMap = structuredData.breadcrumbLabelMap || {};
+
+    function hasBreadcrumbLabel(token) {
+        return Object.prototype.hasOwnProperty.call(breadcrumbLabelMap, token);
+    }
+
     function getBreadcrumbLabel(token){
-        if (structuredData.breadcrumbLabelMap.hasOwnProperty(token)){
-            return structuredData.breadcrumbLabelMap[token];
-        } else {
-            return token;
-        }
+        return hasBreadcrumbLabel(token) ? breadcrumbLabelMap[token] : token;
     }
 
     return {
@@ -374,6 +442,7 @@ module.exports = function (context) {
     // postBuild can look it up without re-parsing source files.
     async allContentLoaded({allContent}) {
         frontmatterByPermalink = collectFrontmatter(allContent, verbose);
+        blogInstances = collectBlogInstances(allContent, siteConfig.baseUrl || '/', verbose);
     },
 
     async postBuild({siteConfig = {}, routesPaths = [], outDir}) {
@@ -669,8 +738,54 @@ module.exports = function (context) {
                 let pageName;
                 let elementIndex = 1;
 
+                // Names of the blog crumbs between Home and the page (e.g.
+                // ['Blog', 'Product Announcements']); doubles as Article.articleSection.
+                let blogCrumbNames = null;
+
                 // add breadcrumb ancestors
 
+                const blogInstance = findBlogInstance(outputRoute);
+
+                if (blogInstance) {
+                    // Route belongs to a content-blog instance. Crumbs are Home,
+                    // then one per segment of the instance base path (Blog >
+                    // Product Announcements for /blog/product), then the page.
+                    // The instance list page is the last base-path crumb itself.
+                    breadcrumbData.itemListElement.push(breadcrumbHomeData);
+                    const isListPage = normalizePermalink(outputRoute) === blogInstance.basePath;
+                    const baseSegments = blogInstance.basePath.split('/').filter(Boolean);
+                    const publicPrefix = siteBaseUrl.endsWith('/') ? siteBaseUrl.slice(0, -1) : siteBaseUrl;
+                    blogCrumbNames = [];
+                    elementIndex = 2;
+                    baseSegments.forEach((segment, index) => {
+                        const isInstanceRoot = index === baseSegments.length - 1;
+                        let name;
+                        if (hasBreadcrumbLabel(segment)) {
+                            name = getBreadcrumbLabel(segment);
+                        } else if (segment === 'blog') {
+                            name = 'Blog';
+                        } else if (isInstanceRoot && blogInstance.title) {
+                            name = blogInstance.title;
+                        } else {
+                            name = segment;
+                        }
+                        blogCrumbNames.push(name);
+                        if (isInstanceRoot && isListPage) {
+                            pageName = name;
+                            return;
+                        }
+                        breadcrumbData.itemListElement.push({
+                            '@type': 'ListItem',
+                            position: elementIndex,
+                            item: `${baseUrl}${publicPrefix}/${baseSegments.slice(0, index + 1).join('/')}`,
+                            name,
+                        });
+                        elementIndex += 1;
+                    });
+                    if (!isListPage) {
+                        pageName = `${webPageTitle}`;
+                    }
+                } else {
                 switch (routeArray.length) {
                     case 0:
                         // its the home page or another root level page
@@ -689,6 +804,8 @@ module.exports = function (context) {
                                 elementIndex = 2;
                                 break;
                             case 'blog':
+                                // only reached when allContent exposed no blog
+                                // instance (findBlogInstance handles the rest)
                                 if (route === '/blog'){
                                     // its the blog index
                                     pageName = 'Blog';
@@ -729,6 +846,7 @@ module.exports = function (context) {
                         elementIndex = 3;
                         break;
                 }
+                }
 
                 verbose ? console.log(`pageName: ${pageName}, elementIndex: ${elementIndex}`): null;
 
@@ -757,7 +875,11 @@ module.exports = function (context) {
                     }
 
                     const articleType = isTechArticle ? 'TechArticle' : 'Article';
-                    const articleSection = isTechArticle ? ['Documentation'] : ['Blog'];
+                    // blog posts carry their instance crumbs (e.g. ['Blog',
+                    // 'Product Announcements']) as the section
+                    const articleSection = isTechArticle
+                        ? ['Documentation']
+                        : (blogCrumbNames && blogCrumbNames.length > 0 ? blogCrumbNames : ['Blog']);
                     const articleDatePublished = articlePublishedTime || webPageData['datePublished'];
 
                     articleData = {

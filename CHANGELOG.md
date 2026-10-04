@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.6.0
+
+Minor release: breadcrumbs and route skipping follow the blog plugin
+instances a site actually runs, instead of assuming a single blog at
+`/blog/<slug>`. Driven by stackql.io splitting its blog into three
+`@docusaurus/plugin-content-blog` instances (`/blog/product`,
+`/blog/providers`, `/blog/tutorials`).
+
+Breaking changes: none. A site with one blog instance at `/blog` emits the
+same `BreadcrumbList` as before.
+
+Added:
+
+- `allContentLoaded` records the base path of every content-blog instance
+  (from its first list page permalink, or its tags path for an instance with
+  no posts). Routes are matched against these base paths, longest first, so
+  `/blog/product` wins over `/blog` when both exist.
+- Blog routes get one crumb per segment of the instance base path, then the
+  page: `/blog/product/<slug>` emits Home > Blog > Product Announcements >
+  Post, and the list page `/blog/product` emits Home > Blog > Product
+  Announcements. Segment names come from `breadcrumbLabelMap`, then `Blog`
+  for a `blog` segment, then the instance's `blogTitle` for its own root
+  segment, then the raw segment.
+- `Article.articleSection` on blog posts is the list of those crumb names
+  (e.g. `["Blog", "Product Announcements"]`) instead of a fixed `["Blog"]`.
+- Tag and pagination routes of every blog instance (`<base>/tags`,
+  `<base>/tags/*`, `<base>/page/*`) are skipped, not only `/blog/tags/*`
+  and `/blog/page/*`.
+
+Fixed:
+
+- `breadcrumbLabelMap` is now optional (defaults to `{}`); omitting it used
+  to crash `postBuild` on the first route with a nested path.
+
+Notes:
+
+- A blog instance mounted at the site root (`routeBasePath: '/'`) is left to
+  the previous breadcrumb logic, since it would otherwise claim every route.
+
 ## 1.5.1
 
 Patch release fixing JSON-LD emission on sites with a non-root `baseUrl`.
