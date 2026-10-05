@@ -268,6 +268,56 @@ Rules:
   generic `Article`.
 - Unset means default (`['/docs/']`).
 
+### TechArticle by docs instance (docs at the site root)
+
+A prefix cannot identify docs pages when the docs instance is mounted at
+the site root (`routeBasePath: '/'`), because every page starts with `/`.
+For that layout list the content-docs instance ids whose doc pages should
+emit `TechArticle`:
+
+```js
+themeConfig: {
+  structuredData: {
+    techArticleRoutePrefixes: [],
+    techArticleDocsInstances: ['default', 'ai'],
+  }
+}
+```
+
+Rules:
+
+- A route emits `TechArticle` when it matches a prefix __or__ is a doc page
+  of a listed instance (the plugin learns each instance's doc permalinks in
+  `allContentLoaded`).
+- Each instance's root route (the docs landing, or the homepage when docs
+  live at `/`) stays a plain `WebPage`, exactly as the `/docs` landing
+  always has. Generated category index pages are not docs and also stay
+  `WebPage`.
+- Unset means `[]` (prefix matching only), so existing configurations are
+  unaffected.
+
+### Breadcrumbs
+
+`BreadcrumbList` is derived from the route path. For a blog route the
+crumbs follow the blog instance (see above). For every other route they
+are Home, then the root of the docs instance the route belongs to (for
+example `/docs`, named by the label map or `Documentation`), then the
+page. Other ancestor segments are folded into the leaf name
+(`Command Line Usage - exec`), since a `ListItem` needs a URL and most
+category segments have no page.
+
+Set `breadcrumbLinkAncestors: true` to turn every ancestor that is itself a
+built route (a category index page) into its own crumb with a URL:
+`Home > Command Line Usage > exec`. The default is `false`, which keeps the
+1.5.x shape.
+
+`breadcrumbLabelMap` keys are single path segments (`'quick-starts': 'Quick
+Starts'`) or full route paths (`'/blog/providers': 'Provider
+Announcements'`). A full-path key wins, so one segment can carry different
+names in different places. Unmapped segments fall back to `Documentation`
+for `docs`, `Blog` for `blog`, a blog instance's `blogTitle` for its own
+root, and otherwise the raw segment.
+
 ### Frontmatter-driven structured data
 
 This is the preferred path as of 1.5.0. Declare the AEO fields in the

@@ -8,8 +8,11 @@ instances a site actually runs, instead of assuming a single blog at
 `@docusaurus/plugin-content-blog` instances (`/blog/product`,
 `/blog/providers`, `/blog/tutorials`).
 
-Breaking changes: none. A site with one blog instance at `/blog` emits the
-same `BreadcrumbList` as before.
+Compatibility: no configuration changes are required and every new option
+defaults to the 1.5.x behaviour. With default options a site with one blog
+at `/blog` and docs at `/docs` emits the same `BreadcrumbList` as before
+for its posts and nested docs. The only differences are where 1.5.x output
+was invalid, listed under Fixed.
 
 Added:
 
@@ -28,11 +31,38 @@ Added:
 - Tag and pagination routes of every blog instance (`<base>/tags`,
   `<base>/tags/*`, `<base>/page/*`) are skipped, not only `/blog/tags/*`
   and `/blog/page/*`.
+- `techArticleDocsInstances` option: an array of content-docs instance ids
+  whose doc pages emit `TechArticle` regardless of URL prefix. Needed when a
+  docs instance lives at the site root (`routeBasePath: '/'`), where no
+  prefix separates docs from other pages. Each instance's root route (the
+  docs landing, or the homepage) stays a plain `WebPage`, as `/docs` always
+  did. Generated category index pages are not docs and stay `WebPage`.
+- Breadcrumbs for every non-blog route are now derived from the path and
+  the site's docs instances rather than from a hardcoded `/docs`: Home,
+  then the docs instance root if the route is under one (named by the
+  label map or `Documentation`), then the page, with other ancestors folded
+  into the leaf name as before (`Command Line Usage - exec`).
+- `breadcrumbLinkAncestors` option (default `false`): when `true`, an
+  ancestor segment that is itself a built route (a category index page)
+  becomes its own crumb with a URL instead of a prefix on the leaf name.
+- `breadcrumbLabelMap` accepts full route paths as keys
+  (`'/blog/providers': 'Provider Announcements'`) alongside single segments.
+  A full-path key wins, so one segment can carry different names in
+  different places.
 
 Fixed:
 
 - `breadcrumbLabelMap` is now optional (defaults to `{}`); omitting it used
   to crash `postBuild` on the first route with a nested path.
+- Nested routes outside `/docs` and `/blog` (for example `/providers/aws`,
+  or any docs instance not mounted at `/docs`) emitted a `BreadcrumbList`
+  with a crumb named "undefined" or a gap in `position`. They now get Home
+  plus the page, with intermediate segments folded into the leaf name.
+- A doc directly under the docs root (`/docs/<page>`) emitted
+  `Home > Documentation` with no crumb for the page itself. It now emits
+  `Home > Documentation > <page title>`.
+- Tag and pagination routes of a blog instance not mounted at `/blog`
+  received JSON-LD; they are skipped like `/blog/tags/*` always was.
 
 Notes:
 
