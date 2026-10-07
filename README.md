@@ -1,3 +1,5 @@
+[![NPM Version](https://img.shields.io/npm/v/%40stackql%2Fdocusaurus-plugin-structured-data)](https://www.npmjs.com/package/@stackql/docusaurus-plugin-structured-data)
+
 # docusaurus-plugin-structured-data
 > Plugin to configure [__Structured Data__](https://developers.google.com/search/docs/appearance/structured-data/intro-structured-data) for Docusaurus sites
 
