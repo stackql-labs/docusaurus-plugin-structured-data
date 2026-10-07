@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.7.0
+
+Truthful dates, the two schema.org types an open-source product site was missing, and the defects an independent agent-readiness audit of the built stackql.io site turned up (work order 3). The JSON-LD shape is otherwise unchanged: with the same configuration a 1.6.0 site emits the same nodes with the same ids, except where listed under Fixed.
+
+Added:
+
+- `themeConfig.structuredData.softwareSourceCode`: a site-wide `SoftwareSourceCode` node (`codeRepository` required; `name`, `programmingLanguage`, `license`, `runtimePlatform` and any other property pass through) in every page's graph, referenced from `WebSite.about`.
+- `themeConfig.structuredData.softwareApplication`: site-wide defaults for every `SoftwareApplication` node a page opts into (`name`, `applicationCategory`, `operatingSystem`, `license`, `downloadUrl`, `softwareVersion`, `isAccessibleForFree`, `priceCurrency`, ...). The page payload is layered over them. `isAccessibleForFree: true` without an explicit `offers` derives `offers: { '@type': 'Offer', price: 0, priceCurrency }`. `applicationCategory`, in the defaults or in a page payload, is validated against schema.org's application categories.
+- `organization` normalisation: `contactPoint` entries get `@type: ContactPoint`, `address` gets `@type: PostalAddress`, a string `logo` becomes an `ImageObject`, and a contact point without `contactType` logs one warning.
+- `excludedRoutes` accepts globs (`/providers/*`, `/registry/**`, `?`) as well as exact routes, the same syntax as `@stackql/docusaurus-plugin-aeo`, matched against the route with and without `siteConfig.baseUrl`.
+- `npm test` (`node --test`): the node builders, validators, date resolution, the breadcrumb builder, route matching and plugin-option handling. The pure logic moved to `src/lib.js`; `src/index.js` is the lifecycle.
+
+Changed:
+
+- `WebPage.dateModified` and `Article`/`TechArticle.dateModified` are the page's real last change: a doc's `lastUpdatedAt` (git, when the docs plugin has `showLastUpdateTime: true`; `last_update.date` front matter folds in), a blog post's `lastUpdatedAt` or `last_update.date`, else the post's date, and only for a page with no record of its own the build time. They were the build time on every page, and `Article.dateModified` equalled `datePublished`.
+- `WebPage.datePublished` is the blog post's date, the page's `datePublished` or `date` front matter, else `webpage.datePublished`; it is omitted when none applies instead of defaulting to the build time. `Article.datePublished` falls back to `dateModified` when a page has no publication date at all. All dates are emitted as full ISO 8601 timestamps; `dateModified` is never earlier than `datePublished`.
+- Plugin options are rejected: the plugin is configured under `themeConfig.structuredData` only, and an option passed in the `plugins` array used to be ignored silently. Now the build fails with a message naming the option and where it belongs.
+- A missing `featuredImageDimensions` on a site that emits Article or TechArticle pages fails with a message naming the option and the first route that needed it, instead of writing `width: undefined` into the ImageObject; a present block is validated at config time.
+
+Fixed:
+
+- `postBuild` now awaits its work. It fired a `JSDOM.fromFile().then()` per route and returned, so the hook resolved before any HTML was rewritten and a failure (an invalid `faq` payload, say) surfaced as an unhandled rejection rather than a build error. The reads are still queued synchronously up front, so another `postBuild` HTML rewriter such as `@stackql/docusaurus-plugin-aeo` keeps seeing this plugin's output.
+- The home page's fragment ids were `https://site//#webpage`, `//#breadcrumb`, `//#softwareapplication` (the route `/` appended to the site URL); they are now `https://site/#webpage` like every other node's.
+- On a site with a non-root `baseUrl`, the Home breadcrumb item pointed at the bare site URL rather than the site root.
+- README: `datePublished` is read from `webpage.datePublished`, not `website.datePublished` as documented.
+
 ## 1.6.0
 
 Minor release: breadcrumbs and route skipping follow the blog plugin

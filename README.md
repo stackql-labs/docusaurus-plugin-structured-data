@@ -23,8 +23,8 @@ The plugin will generate the following types of structured data, and include the
 - [__`description`__](https://schema.org/description) - *sourced from `description` in the page frontmatter*
 - [__`mainEntityOfPage`__](https://schema.org/mainEntityOfPage) - *sourced from `siteConfig.url`*
 - [__`headline`__](https://schema.org/headline) - *sourced from `siteConfig.title`*
-- [__`dateModified`__](https://schema.org/dateModified) - *sourced from the build date*
-- [__`datePublished`__](https://schema.org/datePublished) - *sourced from `themeConfig.structuredData.website.datePublished`*
+- [__`dateModified`__](https://schema.org/dateModified) - *the page's last change: a doc's git last-update time (`showLastUpdateTime`, or `last_update.date` in front matter), a blog post's `last_update.date` or date, and only when a page has no record of its own, the build time (see Dates below)*
+- [__`datePublished`__](https://schema.org/datePublished) - *a blog post's date, the page's `datePublished` front matter, else `themeConfig.structuredData.webpage.datePublished`; omitted when none applies rather than invented*
 
 `BreadcrumbList` structured data is dynamically generated for each page based upon the page `route`.  
 
@@ -78,7 +78,7 @@ Update `themeConfig` in the `docusaurus.config.js` file, the following shows man
   ...,
   themeConfig: {
     structuredData: {
-      excludedRoutes: [], // array of routes to exclude from structured data generation, include custom redirects here
+      excludedRoutes: [], // routes to exclude from structured data generation: exact routes or globs ("/providers/*", "/registry/**"), include custom redirects here
       verbose: boolean, // print verbose output to console (default: false)
       featuredImageDimensions: {
         width: number,
@@ -92,11 +92,28 @@ Update `themeConfig` in the `docusaurus.config.js` file, the following shows man
           sameAs: [] // synonymous entity links, e.g. github, linkedin, twitter, etc.
         },
       },  
-      organization: {}, // Organization properties can be added to this object
+      organization: {}, // Organization properties can be added to this object (contactPoint, address and logo get their @type filled in)
       website: {}, // WebSite properties can be added to this object
       webpage: {
-        datePublished: string, // default is the current date
+        datePublished: string, // site-wide fallback for pages with no date of their own; omitted when unset
         inLanguage: string, // default: en-US
+      },
+      softwareSourceCode: { // optional: a site-wide SoftwareSourceCode node for an open-source product
+        name: string, // default: siteConfig.title
+        codeRepository: string, // required: the repository URL
+        programmingLanguage: string,
+        license: string, // URL or SPDX name
+        runtimePlatform: string,
+      },
+      softwareApplication: { // optional: defaults for every page that opts into a SoftwareApplication node
+        name: string,
+        applicationCategory: string, // one of the schema.org application categories
+        operatingSystem: string,
+        license: string,
+        downloadUrl: string,
+        softwareVersion: string,
+        isAccessibleForFree: boolean, // true derives offers: { '@type': 'Offer', price: 0, priceCurrency }
+        priceCurrency: string, // default: USD
       },
       breadcrumbLabelMap: {} // optional, maps route segments (including blog instance segments such as "product") to labels
       }
@@ -113,6 +130,7 @@ Below is an example of a `docusaurus.config.js` file with the `themeConfig.struc
 structuredData: {
   excludedRoutes: [
     '/providers',
+    '/registry/**',
   ],  
   verbose: true,
   featuredImageDimensions: {
@@ -171,6 +189,22 @@ structuredData: {
     inLanguage: 'en-US',
     datePublished: '2021-07-01',
   },
+  softwareSourceCode: {
+    name: 'StackQL',
+    codeRepository: 'https://github.com/stackql/stackql',
+    programmingLanguage: 'Go',
+    license: 'https://opensource.org/licenses/MIT',
+    runtimePlatform: 'macOS, Linux, Windows',
+  },
+  softwareApplication: {
+    name: 'StackQL',
+    applicationCategory: 'DeveloperApplication',
+    operatingSystem: 'macOS, Linux, Windows',
+    license: 'https://opensource.org/licenses/MIT',
+    downloadUrl: 'https://stackql.io/installing-stackql',
+    isAccessibleForFree: true,
+    priceCurrency: 'USD',
+  },
   breadcrumbLabelMap: {
     'developers': 'Developers',
     'functions': 'Functions',
@@ -186,6 +220,40 @@ structuredData: {
   }
 },
 ```
+
+The plugin takes no plugin options: everything is read from `themeConfig.structuredData`. Passing options in the `plugins` array (`['@stackql/docusaurus-plugin-structured-data', { ... }]`) fails the build with a message saying so, rather than being ignored.
+
+### Dates
+
+Agents and search engines read `dateModified` as a freshness signal, so the plugin only claims what it can source:
+
+| | `datePublished` | `dateModified` |
+|---|---|---|
+| Docs page | `datePublished` or `date` in front matter, else `webpage.datePublished` | git last-update time (`showLastUpdateTime: true` on the docs plugin; `last_update.date` front matter overrides it) |
+| Blog post | the post's date | the post's `last_update.date` (or `lastUpdatedAt` when the blog plugin has `showLastUpdateTime`), else the post's date |
+| Any other page | `webpage.datePublished`, else omitted | the build time |
+
+`dateModified` is never earlier than `datePublished`. Before 1.7.0 `dateModified` was always the build time and `Article.dateModified` equalled `datePublished`, which told agents nothing about freshness.
+
+### Organization contact details
+
+`organization` is merged into the Organization node as written, with one normalisation pass: `contactPoint` entries get `@type: ContactPoint`, `address` gets `@type: PostalAddress` and a string `logo` becomes an `ImageObject`. A contact point without a `contactType` logs one warning at build time, since Google's Organization guidance and agents expect it:
+
+```js
+contactPoint: {
+  contactType: 'customer support', // or 'sales', 'technical support', ...
+  email: 'info@example.com',
+},
+```
+
+### Open-source product: SoftwareSourceCode and SoftwareApplication
+
+Two site-wide blocks describe the product the site documents:
+
+- `softwareSourceCode` emits one `SoftwareSourceCode` node (`@id` `<site>/#softwaresourcecode`) in every page's graph, referenced from `WebSite.about`. `codeRepository` is required; `programmingLanguage`, `license`, `runtimePlatform` and any other schema.org property pass through.
+- `softwareApplication` holds defaults for the `SoftwareApplication` node a page opts into with `softwareApplication: true` (or an object) in its front matter: the page payload is layered over these defaults. With `isAccessibleForFree: true` and no explicit `offers`, the node gets `offers: { '@type': 'Offer', price: 0, priceCurrency }`. `applicationCategory` (in the defaults or a page payload) must be one of schema.org's application categories (`DeveloperApplication`, `UtilitiesApplication`, `BusinessApplication`, ...); anything else fails the build with the list.
+
+To put a complete `SoftwareApplication` on the home page, set the defaults and add `softwareApplication: true` to the home page's front matter.
 
 > If your organization is a `LocalBusiness` or one of its subtypes (e.g.
 > `Store`, `Restaurant`), set `'@type': 'LocalBusiness'` (or the specific
@@ -362,7 +430,7 @@ Field reference:
 |---|---|---|
 | `faq` | array of `{question, answer}` | Emits `FAQPage` node, links from primary entity via `mainEntity` |
 | `howTo` | `{name, totalTime?, estimatedCost?, description?, steps: [{name, text, url?, image?}]}` | Emits `HowTo` node |
-| `softwareApplication` | `true` or object with `applicationCategory?`, `applicationSubCategory?`, `operatingSystem?`, `featureList?`, `softwareVersion?`, `downloadUrl?`, `offers?` | Emits `SoftwareApplication` node |
+| `softwareApplication` | `true` or object with `applicationCategory?`, `applicationSubCategory?`, `operatingSystem?`, `featureList?`, `softwareVersion?`, `downloadUrl?`, `license?`, `isAccessibleForFree?`, `offers?` (any other schema.org property passes through) | Emits `SoftwareApplication` node, layered over `themeConfig.structuredData.softwareApplication` defaults |
 | `proficiencyLevel` | `"Beginner"` \| `"Intermediate"` \| `"Expert"` | Added to `TechArticle` node (only fires on TechArticle routes) |
 | `dependencies` | string | Added to `TechArticle` node |
 | `speakable` | `false` or `{cssSelector?, xpath?}` | `false` opts the page out; object overrides the default selectors |
@@ -579,4 +647,13 @@ time with the route, field path, and expected shape - for example:
 [docusaurus-plugin-structured-data] route "/docs/install/macos": faq[1].answer must be a non-empty string
 ```
 
-so you find out at `yarn build` rather than at Google's Rich Results Test.
+so you find out at `yarn build` rather than at Google's Rich Results Test. The same goes for an `applicationCategory` outside schema.org's list, a `softwareSourceCode` block without `codeRepository`, a malformed `featuredImageDimensions` block, and a missing `featuredImageDimensions` on a site that emits Article or TechArticle pages (the message names the option and the first route that needed it).
+
+## Development
+
+```bash
+npm install
+npm test   # node --test: node builders, validators, dates, breadcrumbs, route matching, plugin options
+```
+
+The pure logic lives in `src/lib.js`; `src/index.js` is the Docusaurus lifecycle around it.
