@@ -1,13 +1,13 @@
 {
     "name": "@stackql/docusaurus-plugin-structured-data",
-    "version": "1.6.0",
+    "version": "1.7.0",
     "description": "A plugin which adds structured data to your docusaurus site.",
     "main": "src/index.js",
     "publishConfig": {
         "access": "public"
     },
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "test": "node --test test/*.test.js"
     },
     "dependencies": {
         "jsdom": "^21.0.0"
@@ -28,5 +28,11 @@
     "bugs": {
         "url": "https://github.com/stackql-labs/docusaurus-plugin-structured-data/issues"
     },
-    "homepage": "https://github.com/stackql-labs/docusaurus-plugin-structured-data#readme"
+    "homepage": "https://github.com/stackql-labs/docusaurus-plugin-structured-data#readme",
+    "files": [
+        "src",
+        "README.md",
+        "CHANGELOG.md",
+        "LICENSE"
+    ]
 }
