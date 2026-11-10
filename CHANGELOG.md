@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.1
+
+Localized sites (Docusaurus i18n). Raised against stackql.io when it gained a `de` locale.
+
+Changed:
+
+- `WebPage.inLanguage` (and the `inLanguage` of `Article`, `TechArticle` and their images, which copy it) follows the locale being built: in a localized build (Docusaurus runs the plugin once per locale with `context.i18n.currentLocale` set to a locale other than `defaultLocale`) it is that locale's `htmlLang`; on the default locale, and on a site without i18n, it is `webpage.inLanguage` or `en-US` as before. URLs, `@id`s and breadcrumbs already carried the locale (`siteConfig.baseUrl` is `/<locale>/` in a localized build) and are unchanged.
+
 ## 1.7.0
 
 Truthful dates, the two schema.org types an open-source product site was missing, and the defects an independent agent-readiness audit of the built stackql.io site turned up (work order 3). The JSON-LD shape is otherwise unchanged: with the same configuration a 1.6.0 site emits the same nodes with the same ids, except where listed under Fixed.

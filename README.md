@@ -24,7 +24,7 @@ The plugin includes the following types in the `<head>` of each processed page u
 - [__`name`__](https://schema.org/name) - *rendered HTML title with the site title suffix removed; falls back to `siteConfig.title` when the title is absent*
 - [__`url`__](https://schema.org/url) - *page url*
 - [__`description`__](https://schema.org/description) - *rendered description meta tag, normally populated from front matter; falls back to `siteConfig.tagline` when absent*
-- [__`inLanguage`__](https://schema.org/inLanguage) - *`themeConfig.structuredData.webpage.inLanguage`, defaulting to `en-US`*
+- [__`inLanguage`__](https://schema.org/inLanguage) - *the locale's `htmlLang` in a localized build (Docusaurus i18n, any locale other than the default), else `themeConfig.structuredData.webpage.inLanguage`, defaulting to `en-US`*
 - [__`dateModified`__](https://schema.org/dateModified) - *the page's last change: a doc's git last-update time (`showLastUpdateTime`, or `last_update.date` in front matter), a blog post's `last_update.date` or date, and only when a page has no record of its own, the build time (see Dates below)*
 - [__`datePublished`__](https://schema.org/datePublished) - *blog metadata, `article:published_time`, front matter, or `themeConfig.structuredData.webpage.datePublished`, in that order; omitted when none supplies a valid date (see Dates below)*
 
@@ -96,7 +96,7 @@ All settings below belong in `themeConfig.structuredData`. The plugin accepts on
 | `authors` | object keyed by author name | `{}`. Author details for `Article`; see Authors below. |
 | `organization` | object | Overrides or extends the generated `Organization` node. |
 | `website` | object | Overrides or extends the generated `WebSite` node. |
-| `webpage` | object | Extends `WebPage`. `inLanguage` defaults to `en-US`; `datePublished` is a site-wide fallback. Generated page fields take precedence. |
+| `webpage` | object | Extends `WebPage`. `inLanguage` defaults to `en-US` on the default locale and to the locale's `htmlLang` in every other locale of an i18n site; `datePublished` is a site-wide fallback. Generated page fields take precedence. |
 | `softwareSourceCode` | object | Unset. Emits a site-wide node when configured; requires an HTTP(S) `codeRepository` URL. |
 | `softwareApplication` | object | Unset. Defaults for pages that explicitly opt into `SoftwareApplication`; does not emit a node by itself. |
 | `breadcrumbLabelMap` | object mapping paths or segments to labels | `{}`. Full paths take precedence over segment keys; paths are relative to `siteConfig.baseUrl`. |

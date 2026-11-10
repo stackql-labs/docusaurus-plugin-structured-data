@@ -328,7 +328,17 @@ module.exports = function (context, options) {
     }
 
     const titleSuffix = ` ${titleDelimiter} ${orgName}`;
-    const defaultInLanguage = (structuredData.webpage && structuredData.webpage.inLanguage) || 'en-US';
+    // The language of every WebPage and Article: in a localized build
+    // (Docusaurus runs the plugin once per locale with i18n.currentLocale
+    // set to a locale other than the default) the locale's htmlLang; on the
+    // default locale, and on a site without i18n, webpage.inLanguage or
+    // en-US as before.
+    const i18n = context.i18n || {};
+    const localizedBuild = Boolean(i18n.currentLocale && i18n.defaultLocale && i18n.currentLocale !== i18n.defaultLocale);
+    const localeHtmlLang = localizedBuild
+        ? (((i18n.localeConfigs || {})[i18n.currentLocale] || {}).htmlLang || i18n.currentLocale)
+        : null;
+    const defaultInLanguage = localeHtmlLang || (structuredData.webpage && structuredData.webpage.inLanguage) || 'en-US';
     const configDatePublished = (structuredData.webpage && structuredData.webpage.datePublished) || null;
     const skipRoutes = new Set(['/404.html', '/search']);
 
