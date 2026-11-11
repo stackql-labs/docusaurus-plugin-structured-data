@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.8.0
+
+Composing with the JSON-LD Docusaurus writes itself, and image dimensions that describe the right image ([#4](https://github.com/stackql-labs/docusaurus-plugin-structured-data/issues/4)). With no new option set, a 1.7.1 configuration emits the same graph except where listed under Fixed.
+
+Added:
+
+- `themeConfig.structuredData.nativeStructuredData`: `'ignore'` (default) or `'reuse'`. The classic theme writes its own JSON-LD: a `BreadcrumbList` on docs pages (Docusaurus 3.8 and later) and a `BlogPosting` on blog posts. `'ignore'` adds the plugin's graph next to it as before, so those pages describe the same thing twice. `'reuse'` decides per page, from the JSON-LD already in the built HTML:
+  - A page with a `BreadcrumbList` gets none from the plugin, and `WebPage.breadcrumb` is dropped (the theme's list has no `@id` to reference; a list with one is referenced). Pages without one keep the plugin's breadcrumb.
+  - A page with a `BlogPosting`, or another `Article` subtype, gets no `Article`, `ImageObject` or `Person` from the plugin. `WebPage.mainEntity` references the existing node by `@id`, and a node with the same `@id` and no `@type` adds `mainEntityOfPage` (the `WebPage`) plus `publisher` and `dateModified` where the existing node lacks them.
+  - `Organization`, `WebSite`, `WebPage`, `TechArticle` on docs, `SoftwareSourceCode` and the opt-in `FAQPage`, `HowTo` and `SoftwareApplication` nodes are unchanged, as are pages with no JSON-LD of their own.
+
+  The theme's blocks are never removed or edited: they carry `data-rh="true"`, and react-helmet restores a changed block on hydration. A site using `'reuse'` has no need for `authors` or for `breadcrumbLabelMap` entries covering docs. Any other value fails the build at config time.
+- Tests: a fixture site with the `<head>` Docusaurus 3.9 renders (`test/fixtures`), covering both modes, and the 1.7.1 output recorded for it, which the default output is compared against.
+
+Changed:
+
+- `featuredImageDimensions` is optional. A site without it builds, and no `ImageObject` states a width or height. It used to fail the build as soon as a page emitted `Article` or `TechArticle`.
+
+Fixed:
+
+- `ImageObject.width` and `height` came from `featuredImageDimensions` whatever image the page used, so a page with its own `og:image` (blog `image:` front matter, a swizzled docs metadata component) stated the size of a different file. They are now emitted only when the page's image is the site default (`themeConfig.image`, as Docusaurus renders it under `siteConfig.url` and `baseUrl`) and omitted otherwise.
+
 ## 1.7.1
 
 Localized sites (Docusaurus i18n). Raised against stackql.io when it gained a `de` locale.

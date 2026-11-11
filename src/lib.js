@@ -37,6 +37,35 @@ const APPLICATION_CATEGORIES = [
     'ReferenceApplication',
 ];
 
+// 'ignore' (the default) adds the plugin's graph without looking at what
+// the page already has; 'reuse' leaves out the nodes the page already has.
+const NATIVE_STRUCTURED_DATA_MODES = ['ignore', 'reuse'];
+
+// schema.org's Article and every subtype of it. A page that already
+// carries one of these (the classic theme writes a BlogPosting on blog
+// posts) does not get a second article from the plugin in 'reuse' mode.
+const ARTICLE_TYPES = [
+    'Article',
+    'AdvertiserContentArticle',
+    'NewsArticle',
+    'AnalysisNewsArticle',
+    'AskPublicNewsArticle',
+    'BackgroundNewsArticle',
+    'OpinionNewsArticle',
+    'ReportageNewsArticle',
+    'ReviewNewsArticle',
+    'Report',
+    'SatiricalArticle',
+    'ScholarlyArticle',
+    'MedicalScholarlyArticle',
+    'SocialMediaPosting',
+    'BlogPosting',
+    'LiveBlogPosting',
+    'DiscussionForumPosting',
+    'TechArticle',
+    'APIReference',
+];
+
 // ------------------------------------------------------------ validators
 
 function validateFaq(payload, route) {
@@ -147,23 +176,24 @@ function validateTechArticleRoutePrefixes(prefixes) {
     });
 }
 
-// Only article pages need it (the ImageObject carries width and height),
-// so a missing block is allowed at construction and reported, by name, the
-// first time an article page is processed. A present block must be usable.
-function validateFeaturedImageDimensions(dims, required) {
-    const name = 'themeConfig.structuredData.featuredImageDimensions';
-    if (dims === undefined || dims === null) {
-        if (required) {
-            throw new Error(
-                `${TAG} ${name} is required to emit the ImageObject for Article and TechArticle pages (${required}); set it to { width, height } in pixels`
-            );
-        }
-        return;
-    }
+// Optional: the pixel size of the site's default image (themeConfig.image).
+// Without it no ImageObject states a width or height. A present block must
+// be usable.
+function validateFeaturedImageDimensions(dims) {
+    if (dims === undefined || dims === null) return;
     const ok = (n) => typeof n === 'number' && Number.isFinite(n) && n > 0;
     if (typeof dims !== 'object' || !ok(dims.width) || !ok(dims.height)) {
-        throw new Error(`${TAG} ${name} must be { width: number, height: number } in pixels`);
+        throw new Error(`${TAG} themeConfig.structuredData.featuredImageDimensions must be { width: number, height: number } in pixels`);
     }
+}
+
+// themeConfig.structuredData.nativeStructuredData: what to do about JSON-LD
+// a page already carries when the plugin runs (see findNativeNodes).
+function validateNativeStructuredData(mode) {
+    if (mode === undefined || NATIVE_STRUCTURED_DATA_MODES.includes(mode)) return;
+    throw new Error(
+        `${TAG} themeConfig.structuredData.nativeStructuredData must be ${NATIVE_STRUCTURED_DATA_MODES.map((m) => JSON.stringify(m)).join(' or ')}, got ${JSON.stringify(mode)}`
+    );
 }
 
 // Docusaurus hands every plugin an options object; this one is configured
@@ -339,6 +369,90 @@ function normalizeOrganization(org, warn) {
     }
     if (typeof warn === 'function') warnings.forEach((w) => warn(w));
     return out;
+}
+
+// -------------------------------------------------- native structured data
+
+// A node's @type values as bare schema.org names ("BlogPosting" for
+// "BlogPosting", "schema:BlogPosting" and "https://schema.org/BlogPosting").
+function nodeTypes(node) {
+    const raw = node && node['@type'];
+    return (Array.isArray(raw) ? raw : [raw])
+        .filter((t) => typeof t === 'string')
+        .map((t) => t.replace(/^(?:https?:\/\/schema\.org\/|schema:)/, ''));
+}
+
+// The nodes a page already has that the plugin would otherwise duplicate:
+// a BreadcrumbList (the classic theme writes one on docs pages since
+// Docusaurus 3.8) and an Article of any subtype (its BlogPosting on blog
+// posts). `blocks` is the text of each application/ld+json script on the
+// page. Only top-level nodes count, including the members of a top-level
+// @graph: the BlogPostings nested in a blog list page's Blog node describe
+// other pages. A block that is not valid JSON is skipped and reported to
+// onInvalid. Where several nodes qualify, one with an @id is preferred,
+// since that is the one the plugin's graph can point at.
+function findNativeNodes(blocks, onInvalid) {
+    const nodes = [];
+    const collect = (value) => {
+        if (Array.isArray(value)) {
+            value.forEach(collect);
+        } else if (value && typeof value === 'object') {
+            if (Array.isArray(value['@graph'])) value['@graph'].forEach(collect);
+            else nodes.push(value);
+        }
+    };
+    (blocks || []).forEach((text, index) => {
+        if (typeof text !== 'string' || !text.trim()) return;
+        try {
+            collect(JSON.parse(text));
+        } catch (err) {
+            if (typeof onInvalid === 'function') onInvalid(err, index);
+        }
+    });
+    const pick = (matches) => matches.find((n) => typeof n['@id'] === 'string' && n['@id']) || matches[0] || null;
+    return {
+        breadcrumb: pick(nodes.filter((n) => nodeTypes(n).includes('BreadcrumbList'))),
+        article: pick(nodes.filter((n) => nodeTypes(n).some((t) => ARTICLE_TYPES.includes(t)))),
+    };
+}
+
+// What the plugin adds to an article node the page already carries: the
+// link back to the plugin's WebPage, and the publisher and dateModified the
+// node does not state itself. It is a node with the article's @id and no
+// @type, so it merges into that article rather than standing as a second
+// one. Null when the article has no @id to merge on.
+function buildNativeArticleSupplement(article, { webPageId, organizationId, dateModified }) {
+    const id = article && article['@id'];
+    if (typeof id !== 'string' || !id) return null;
+    const node = {
+        '@id': id,
+        mainEntityOfPage: { '@id': webPageId },
+    };
+    if (article.publisher === undefined) node.publisher = { '@id': organizationId };
+    if (article.dateModified === undefined && dateModified) node.dateModified = dateModified;
+    return node;
+}
+
+// ----------------------------------------------------------------- images
+
+// The absolute URL Docusaurus renders for a site image path such as
+// themeConfig.image (useBaseUrl with absolute: true): a URL with a protocol
+// is kept, anything else is put under siteConfig.baseUrl and siteConfig.url.
+function resolveSiteImageUrl(image, siteUrl, baseUrl) {
+    if (typeof image !== 'string' || !image) return null;
+    if (/^(?:\w*:|\/\/)/.test(image)) return image;
+    const base = baseUrl || '/';
+    const underBase = image.startsWith(base) ? image : `${base}${image.replace(/^\//, '')}`;
+    return `${siteUrl || ''}${underBase}`;
+}
+
+// Whether a page's image (its og:image, or themeConfig.image when the page
+// has none) is the site default. featuredImageDimensions describes that one
+// file, so only then may an ImageObject state a width and height.
+function isSiteDefaultImage(pageImage, defaultImage, siteUrl, baseUrl) {
+    if (typeof pageImage !== 'string' || !pageImage) return false;
+    if (typeof defaultImage !== 'string' || !defaultImage) return false;
+    return pageImage === defaultImage || pageImage === resolveSiteImageUrl(defaultImage, siteUrl, baseUrl);
 }
 
 // ------------------------------------------------------------------ dates
@@ -567,6 +681,8 @@ module.exports = {
     DEFAULT_SPEAKABLE_SELECTORS,
     DEFAULT_TECH_ARTICLE_PREFIXES,
     APPLICATION_CATEGORIES,
+    NATIVE_STRUCTURED_DATA_MODES,
+    ARTICLE_TYPES,
     validateFaq,
     validateHowTo,
     validateApplicationCategory,
@@ -575,6 +691,7 @@ module.exports = {
     validateSoftwareSourceCode,
     validateTechArticleRoutePrefixes,
     validateFeaturedImageDimensions,
+    validateNativeStructuredData,
     validatePluginOptions,
     buildFaqNode,
     buildHowToNode,
@@ -582,6 +699,11 @@ module.exports = {
     buildSoftwareSourceCodeNode,
     buildSpeakableSpec,
     normalizeOrganization,
+    nodeTypes,
+    findNativeNodes,
+    buildNativeArticleSupplement,
+    resolveSiteImageUrl,
+    isSiteDefaultImage,
     toIsoDate,
     resolveDates,
     normalizePermalink,

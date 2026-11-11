@@ -211,11 +211,119 @@ test('validatePluginOptions rejects anything but id', () => {
   assert.throws(() => lib.validatePluginOptions({ id: 'default', verbose: true }), /takes no plugin options \(got "verbose"\); configure it under themeConfig.structuredData/);
 });
 
-test('validateFeaturedImageDimensions names the option', () => {
-  assert.doesNotThrow(() => lib.validateFeaturedImageDimensions(undefined, null));
-  assert.throws(() => lib.validateFeaturedImageDimensions(undefined, 'route "/blog/x"'), /featuredImageDimensions is required .* \(route "\/blog\/x"\)/);
-  assert.throws(() => lib.validateFeaturedImageDimensions({ width: '1200' }, null), /must be \{ width: number, height: number \}/);
-  assert.doesNotThrow(() => lib.validateFeaturedImageDimensions({ width: 1200, height: 627 }, null));
+test('validateFeaturedImageDimensions: optional, but a present block must be usable', () => {
+  assert.doesNotThrow(() => lib.validateFeaturedImageDimensions(undefined));
+  assert.doesNotThrow(() => lib.validateFeaturedImageDimensions(null));
+  assert.throws(() => lib.validateFeaturedImageDimensions({ width: '1200' }), /featuredImageDimensions must be \{ width: number, height: number \}/);
+  assert.throws(() => lib.validateFeaturedImageDimensions({ width: 1200, height: 0 }), /featuredImageDimensions must be/);
+  assert.doesNotThrow(() => lib.validateFeaturedImageDimensions({ width: 1200, height: 627 }));
+});
+
+test('validateNativeStructuredData accepts ignore, reuse or nothing', () => {
+  for (const mode of [undefined, 'ignore', 'reuse']) {
+    assert.doesNotThrow(() => lib.validateNativeStructuredData(mode));
+  }
+  for (const mode of ['Reuse', 'merge', true, null, '']) {
+    assert.throws(() => lib.validateNativeStructuredData(mode), /nativeStructuredData must be "ignore" or "reuse", got /);
+  }
+});
+
+// ------------------------------------------------ native structured data
+
+const ld = (value) => JSON.stringify(value);
+const nativeCrumbs = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [] };
+const nativePost = { '@context': 'https://schema.org', '@type': 'BlogPosting', '@id': 'https://example.com/blog/post' };
+
+test('findNativeNodes finds a top-level BreadcrumbList and article', () => {
+  assert.deepEqual(lib.findNativeNodes([]), { breadcrumb: null, article: null });
+  assert.deepEqual(lib.findNativeNodes([ld(nativeCrumbs)]), { breadcrumb: nativeCrumbs, article: null });
+  assert.deepEqual(lib.findNativeNodes([ld(nativePost)]), { breadcrumb: null, article: nativePost });
+  // several blocks, a top-level array, and the members of a top-level @graph
+  assert.deepEqual(lib.findNativeNodes([ld({ '@type': 'WebSite' }), ld(nativeCrumbs), ld(nativePost)]), { breadcrumb: nativeCrumbs, article: nativePost });
+  assert.deepEqual(lib.findNativeNodes([ld([nativeCrumbs, nativePost])]), { breadcrumb: nativeCrumbs, article: nativePost });
+  assert.deepEqual(
+    lib.findNativeNodes([ld({ '@context': 'https://schema.org', '@graph': [nativeCrumbs, nativePost] })]),
+    { breadcrumb: nativeCrumbs, article: nativePost },
+  );
+});
+
+test('findNativeNodes ignores nested nodes: a blog list page has no article of its own', () => {
+  const blog = { '@type': 'Blog', '@id': 'https://example.com/blog', blogPost: [nativePost] };
+  assert.deepEqual(lib.findNativeNodes([ld(blog)]), { breadcrumb: null, article: null });
+});
+
+test('findNativeNodes recognises every Article subtype, type arrays and schema.org IRIs', () => {
+  for (const type of ['Article', 'NewsArticle', 'TechArticle', 'BlogPosting', 'ScholarlyArticle', 'Report']) {
+    assert.equal(lib.findNativeNodes([ld({ '@type': type })]).article['@type'], type);
+  }
+  for (const type of [['Thing', 'BlogPosting'], 'https://schema.org/BlogPosting', 'http://schema.org/BlogPosting', 'schema:BlogPosting']) {
+    assert.ok(lib.findNativeNodes([ld({ '@type': type })]).article, JSON.stringify(type));
+  }
+  for (const type of ['WebPage', 'Blog', 'Person', 'FAQPage', undefined]) {
+    assert.equal(lib.findNativeNodes([ld({ '@type': type })]).article, null);
+  }
+  assert.deepEqual(lib.nodeTypes({ '@type': ['schema:BreadcrumbList', 'Thing'] }), ['BreadcrumbList', 'Thing']);
+  assert.deepEqual(lib.nodeTypes({}), []);
+});
+
+test('findNativeNodes prefers a node with an @id and skips blocks that are not JSON', () => {
+  const anonymous = { '@type': 'NewsArticle', headline: 'No id' };
+  assert.equal(lib.findNativeNodes([ld(anonymous), ld(nativePost)]).article['@id'], nativePost['@id']);
+  assert.deepEqual(lib.findNativeNodes([ld(anonymous)]).article, anonymous);
+
+  const invalid = [];
+  const found = lib.findNativeNodes(['{"@type":"BreadcrumbList",,}', '', '   ', undefined, ld(nativePost)], (err, index) => invalid.push(index));
+  assert.deepEqual(found, { breadcrumb: null, article: nativePost });
+  assert.deepEqual(invalid, [0]);
+  assert.doesNotThrow(() => lib.findNativeNodes(['not json']));
+});
+
+test('buildNativeArticleSupplement adds the WebPage link and only what the article lacks', () => {
+  const ids = { webPageId: 'https://example.com/blog/post/#webpage', organizationId: 'https://example.com/#organization', dateModified: '2024-02-01T00:00:00.000Z' };
+  assert.deepEqual(lib.buildNativeArticleSupplement(nativePost, ids), {
+    '@id': 'https://example.com/blog/post',
+    mainEntityOfPage: { '@id': 'https://example.com/blog/post/#webpage' },
+    publisher: { '@id': 'https://example.com/#organization' },
+    dateModified: '2024-02-01T00:00:00.000Z',
+  });
+  // no @type: it merges into the article instead of being a second one
+  assert.equal('@type' in lib.buildNativeArticleSupplement(nativePost, ids), false);
+  // the article's own publisher and dateModified are not overridden
+  const complete = { ...nativePost, publisher: { '@type': 'Organization', name: 'Other' }, dateModified: '2024-01-20T00:00:00.000Z' };
+  assert.deepEqual(lib.buildNativeArticleSupplement(complete, ids), {
+    '@id': 'https://example.com/blog/post',
+    mainEntityOfPage: { '@id': 'https://example.com/blog/post/#webpage' },
+  });
+  // nothing to merge on
+  assert.equal(lib.buildNativeArticleSupplement({ '@type': 'BlogPosting' }, ids), null);
+  assert.equal(lib.buildNativeArticleSupplement(null, ids), null);
+});
+
+// ---------------------------------------------------------------- images
+
+test('resolveSiteImageUrl mirrors how Docusaurus renders themeConfig.image', () => {
+  assert.equal(lib.resolveSiteImageUrl('img/card.png', 'https://example.com', '/'), 'https://example.com/img/card.png');
+  assert.equal(lib.resolveSiteImageUrl('/img/card.png', 'https://example.com', '/'), 'https://example.com/img/card.png');
+  // a non-root baseUrl (also a localized build, where baseUrl is /<locale>/)
+  assert.equal(lib.resolveSiteImageUrl('img/card.png', 'https://example.com', '/de/'), 'https://example.com/de/img/card.png');
+  assert.equal(lib.resolveSiteImageUrl('/de/img/card.png', 'https://example.com', '/de/'), 'https://example.com/de/img/card.png');
+  // a URL with a protocol is kept
+  assert.equal(lib.resolveSiteImageUrl('https://cdn.example.com/card.png', 'https://example.com', '/'), 'https://cdn.example.com/card.png');
+  assert.equal(lib.resolveSiteImageUrl('//cdn.example.com/card.png', 'https://example.com', '/'), '//cdn.example.com/card.png');
+  assert.equal(lib.resolveSiteImageUrl(undefined, 'https://example.com', '/'), null);
+});
+
+test('isSiteDefaultImage: the og:image Docusaurus renders for themeConfig.image, or the fallback itself', () => {
+  const site = ['https://example.com', '/'];
+  assert.equal(lib.isSiteDefaultImage('https://example.com/img/card.png', 'img/card.png', ...site), true);
+  // no og:image on the page: the plugin falls back to themeConfig.image as written
+  assert.equal(lib.isSiteDefaultImage('img/card.png', 'img/card.png', ...site), true);
+  assert.equal(lib.isSiteDefaultImage('https://example.com/img/blog/post.png', 'img/card.png', ...site), false);
+  assert.equal(lib.isSiteDefaultImage('https://example.com/de/img/card.png', 'img/card.png', 'https://example.com', '/de/'), true);
+  assert.equal(lib.isSiteDefaultImage('https://example.com/img/card.png', 'img/card.png', 'https://example.com', '/de/'), false);
+  // a site with no default image has nothing for the dimensions to describe
+  assert.equal(lib.isSiteDefaultImage('https://example.com/img/card.png', undefined, ...site), false);
+  assert.equal(lib.isSiteDefaultImage(undefined, undefined, ...site), false);
 });
 
 // ---------------------------------------------------------- breadcrumbs

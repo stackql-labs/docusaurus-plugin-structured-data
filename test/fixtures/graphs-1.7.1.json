@@ -1,0 +1,500 @@
+{
+  "/": [
+    {
+      "@type": "WebPage",
+      "isPartOf": {
+        "@id": "https://example.com/#website"
+      },
+      "inLanguage": "en-US",
+      "datePublished": "2021-07-01T00:00:00.000Z",
+      "@id": "https://example.com/#webpage",
+      "url": "https://example.com/",
+      "name": "Home",
+      "description": "The product home page.",
+      "dateModified": "2025-06-01T00:00:00.000Z",
+      "breadcrumb": {
+        "@id": "https://example.com/#breadcrumb"
+      },
+      "potentialAction": [
+        {
+          "@type": "ReadAction",
+          "target": [
+            "https://example.com/"
+          ]
+        }
+      ],
+      "speakable": {
+        "@type": "SpeakableSpecification",
+        "cssSelector": [
+          "h1",
+          "article p:first-of-type",
+          "[data-speakable]"
+        ]
+      },
+      "mainEntity": {
+        "@id": "https://example.com/#softwareapplication"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": "https://example.com/#breadcrumb",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home"
+        }
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://example.com/#website",
+      "name": "Site",
+      "url": "https://example.com",
+      "description": "Tag",
+      "publisher": {
+        "@id": "https://example.com/#organization"
+      },
+      "potentialAction": [
+        {
+          "@type": "SearchAction",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://example.com/search?q={searchTerms}"
+          },
+          "query-input": "required name=searchTerms"
+        }
+      ],
+      "about": {
+        "@id": "https://example.com/#softwaresourcecode"
+      },
+      "inLanguage": "en-US"
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://example.com/#organization",
+      "name": "Site",
+      "url": "https://example.com",
+      "sameAs": [
+        "https://github.com/example"
+      ],
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://example.com/img/logo.png",
+        "contentUrl": "https://example.com/img/logo.png"
+      }
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "@id": "https://example.com/#softwaresourcecode",
+      "name": "Site",
+      "codeRepository": "https://github.com/example/product",
+      "programmingLanguage": "Go"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://example.com/#softwareapplication",
+      "name": "Product",
+      "applicationCategory": "DeveloperApplication",
+      "softwareVersion": "1.0.0",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": 0,
+        "priceCurrency": "USD"
+      }
+    }
+  ],
+  "/docs/guides/install": [
+    {
+      "@type": "TechArticle",
+      "@id": "https://example.com/docs/guides/install/#article",
+      "isPartOf": {
+        "@type": "WebPage",
+        "@id": "https://example.com/docs/guides/install/#webpage"
+      },
+      "headline": "Install",
+      "datePublished": "2021-07-01T00:00:00.000Z",
+      "dateModified": "2024-06-01T00:00:00.000Z",
+      "mainEntityOfPage": {
+        "@id": "https://example.com/docs/guides/install/#webpage"
+      },
+      "wordCount": 13,
+      "publisher": {
+        "@id": "https://example.com/#organization"
+      },
+      "image": {
+        "@id": "https://example.com/docs/guides/install/#primaryimage"
+      },
+      "thumbnailUrl": "https://example.com/img/social-card.png",
+      "keywords": [],
+      "articleSection": [
+        "Documentation"
+      ],
+      "inLanguage": "en-US"
+    },
+    {
+      "@type": "WebPage",
+      "isPartOf": {
+        "@id": "https://example.com/#website"
+      },
+      "inLanguage": "en-US",
+      "datePublished": "2021-07-01T00:00:00.000Z",
+      "@id": "https://example.com/docs/guides/install/#webpage",
+      "url": "https://example.com/docs/guides/install",
+      "name": "Install",
+      "description": "How to install the product.",
+      "dateModified": "2024-06-01T00:00:00.000Z",
+      "breadcrumb": {
+        "@id": "https://example.com/docs/guides/install/#breadcrumb"
+      },
+      "potentialAction": [
+        {
+          "@type": "ReadAction",
+          "target": [
+            "https://example.com/docs/guides/install"
+          ]
+        }
+      ],
+      "speakable": {
+        "@type": "SpeakableSpecification",
+        "cssSelector": [
+          "h1",
+          "article p:first-of-type",
+          "[data-speakable]"
+        ]
+      }
+    },
+    {
+      "@type": "ImageObject",
+      "inLanguage": "en-US",
+      "@id": "https://example.com/docs/guides/install/#primaryimage",
+      "url": "https://example.com/img/social-card.png",
+      "contentUrl": "https://example.com/img/social-card.png",
+      "caption": "Install",
+      "width": 1200,
+      "height": 630
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": "https://example.com/docs/guides/install/#breadcrumb",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "item": "https://example.com",
+          "name": "Home"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Documentation - guides - Install"
+        }
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://example.com/#website",
+      "name": "Site",
+      "url": "https://example.com",
+      "description": "Tag",
+      "publisher": {
+        "@id": "https://example.com/#organization"
+      },
+      "potentialAction": [
+        {
+          "@type": "SearchAction",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://example.com/search?q={searchTerms}"
+          },
+          "query-input": "required name=searchTerms"
+        }
+      ],
+      "about": {
+        "@id": "https://example.com/#softwaresourcecode"
+      },
+      "inLanguage": "en-US"
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://example.com/#organization",
+      "name": "Site",
+      "url": "https://example.com",
+      "sameAs": [
+        "https://github.com/example"
+      ],
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://example.com/img/logo.png",
+        "contentUrl": "https://example.com/img/logo.png"
+      }
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "@id": "https://example.com/#softwaresourcecode",
+      "name": "Site",
+      "codeRepository": "https://github.com/example/product",
+      "programmingLanguage": "Go"
+    }
+  ],
+  "/blog": [
+    {
+      "@type": "WebPage",
+      "isPartOf": {
+        "@id": "https://example.com/#website"
+      },
+      "inLanguage": "en-US",
+      "datePublished": "2021-07-01T00:00:00.000Z",
+      "@id": "https://example.com/blog/#webpage",
+      "url": "https://example.com/blog",
+      "name": "Blog",
+      "description": "Release announcements.",
+      "dateModified": "2025-06-01T00:00:00.000Z",
+      "breadcrumb": {
+        "@id": "https://example.com/blog/#breadcrumb"
+      },
+      "potentialAction": [
+        {
+          "@type": "ReadAction",
+          "target": [
+            "https://example.com/blog"
+          ]
+        }
+      ],
+      "speakable": {
+        "@type": "SpeakableSpecification",
+        "cssSelector": [
+          "h1",
+          "article p:first-of-type",
+          "[data-speakable]"
+        ]
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": "https://example.com/blog/#breadcrumb",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "item": "https://example.com",
+          "name": "Home"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Blog"
+        }
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://example.com/#website",
+      "name": "Site",
+      "url": "https://example.com",
+      "description": "Tag",
+      "publisher": {
+        "@id": "https://example.com/#organization"
+      },
+      "potentialAction": [
+        {
+          "@type": "SearchAction",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://example.com/search?q={searchTerms}"
+          },
+          "query-input": "required name=searchTerms"
+        }
+      ],
+      "about": {
+        "@id": "https://example.com/#softwaresourcecode"
+      },
+      "inLanguage": "en-US"
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://example.com/#organization",
+      "name": "Site",
+      "url": "https://example.com",
+      "sameAs": [
+        "https://github.com/example"
+      ],
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://example.com/img/logo.png",
+        "contentUrl": "https://example.com/img/logo.png"
+      }
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "@id": "https://example.com/#softwaresourcecode",
+      "name": "Site",
+      "codeRepository": "https://github.com/example/product",
+      "programmingLanguage": "Go"
+    }
+  ],
+  "/blog/post": [
+    {
+      "@type": "Article",
+      "@id": "https://example.com/blog/post/#article",
+      "isPartOf": {
+        "@type": "WebPage",
+        "@id": "https://example.com/blog/post/#webpage"
+      },
+      "headline": "Version 1.0 released",
+      "datePublished": "2024-01-15T00:00:00.000Z",
+      "dateModified": "2024-01-15T00:00:00.000Z",
+      "mainEntityOfPage": {
+        "@id": "https://example.com/blog/post/#webpage"
+      },
+      "wordCount": 12,
+      "publisher": {
+        "@id": "https://example.com/#organization"
+      },
+      "image": {
+        "@id": "https://example.com/blog/post/#primaryimage"
+      },
+      "thumbnailUrl": "https://example.com/img/blog/post.png",
+      "keywords": [
+        "release",
+        "v1.0"
+      ],
+      "articleSection": [
+        "Blog"
+      ],
+      "inLanguage": "en-US",
+      "author": {
+        "name": "Jane Doe",
+        "@id": "https://example.com/#/schema/person/1"
+      }
+    },
+    {
+      "@type": "WebPage",
+      "isPartOf": {
+        "@id": "https://example.com/#website"
+      },
+      "inLanguage": "en-US",
+      "datePublished": "2024-01-15T00:00:00.000Z",
+      "@id": "https://example.com/blog/post/#webpage",
+      "url": "https://example.com/blog/post",
+      "name": "Version 1.0 released",
+      "description": "What is new in version 1.0.",
+      "dateModified": "2024-01-15T00:00:00.000Z",
+      "breadcrumb": {
+        "@id": "https://example.com/blog/post/#breadcrumb"
+      },
+      "potentialAction": [
+        {
+          "@type": "ReadAction",
+          "target": [
+            "https://example.com/blog/post"
+          ]
+        }
+      ],
+      "speakable": {
+        "@type": "SpeakableSpecification",
+        "cssSelector": [
+          "h1",
+          "article p:first-of-type",
+          "[data-speakable]"
+        ]
+      }
+    },
+    {
+      "@type": "ImageObject",
+      "inLanguage": "en-US",
+      "@id": "https://example.com/blog/post/#primaryimage",
+      "url": "https://example.com/img/blog/post.png",
+      "contentUrl": "https://example.com/img/blog/post.png",
+      "caption": "Version 1.0 released",
+      "width": 1200,
+      "height": 630
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": "https://example.com/blog/post/#breadcrumb",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "item": "https://example.com",
+          "name": "Home"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "item": "https://example.com/blog",
+          "name": "Blog"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Version 1.0 released"
+        }
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://example.com/#website",
+      "name": "Site",
+      "url": "https://example.com",
+      "description": "Tag",
+      "publisher": {
+        "@id": "https://example.com/#organization"
+      },
+      "potentialAction": [
+        {
+          "@type": "SearchAction",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://example.com/search?q={searchTerms}"
+          },
+          "query-input": "required name=searchTerms"
+        }
+      ],
+      "about": {
+        "@id": "https://example.com/#softwaresourcecode"
+      },
+      "inLanguage": "en-US"
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://example.com/#organization",
+      "name": "Site",
+      "url": "https://example.com",
+      "sameAs": [
+        "https://github.com/example"
+      ],
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://example.com/img/logo.png",
+        "contentUrl": "https://example.com/img/logo.png"
+      }
+    },
+    {
+      "@type": "Person",
+      "@id": "https://example.com/#/schema/person/1",
+      "name": "Jane Doe",
+      "image": {
+        "@type": "ImageObject",
+        "inLanguage": "en-US",
+        "@id": "https://example.com/#/schema/person/image/1",
+        "url": "https://example.com/img/jane.png",
+        "contentUrl": "https://example.com/img/jane.png",
+        "caption": "Jane Doe"
+      },
+      "sameAs": [
+        "https://github.com/jane"
+      ],
+      "url": "https://example.com/jane"
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "@id": "https://example.com/#softwaresourcecode",
+      "name": "Site",
+      "codeRepository": "https://github.com/example/product",
+      "programmingLanguage": "Go"
+    }
+  ]
+}

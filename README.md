@@ -36,6 +36,8 @@ For routes owned by a `@docusaurus/plugin-content-blog` instance the crumbs are 
  
 `TechArticle` is generated for routes matching `techArticleRoutePrefixes` or docs selected by `techArticleDocsInstances`. Other pages with `og:type: article`, including normal blog posts, get `Article`. Both include a paragraph-based `wordCount`, an `ImageObject`, the page title as `headline`, and a `mainEntityOfPage` reference to the `WebPage`. `Article` includes author data only when an author matches the configured `authors` map; this plugin does not add authors to `TechArticle`.
 
+Current Docusaurus versions write some JSON-LD of their own (a `BreadcrumbList` on docs pages, a `BlogPosting` on blog posts). By default the plugin adds its graph next to it; set `nativeStructuredData: 'reuse'` to leave out the nodes a page already has. See [Docusaurus's own structured data](#docusauruss-own-structured-data).
+
 `/404.html`, `/search`, `/tags`, `/tags/*`, `/page/*`, `/blog/tags`, `/blog/tags/*`, and `/blog/page/*` are skipped automatically, as are tag and pagination routes for detected blog instances. These checks use paths relative to `siteConfig.baseUrl`. Use `excludedRoutes` for additional exclusions, including custom redirects.
 
 ## Installation
@@ -82,7 +84,9 @@ module.exports = {
 };
 ```
 
-`themeConfig.structuredData` is required. Its fields are optional except `featuredImageDimensions`, which is required when any processed page emits `Article` or `TechArticle`. Set its positive numeric dimensions to match your featured image. The image URL comes from `og:image`, falling back to `themeConfig.image`; the plugin does not measure images.
+`themeConfig.structuredData` is required; every field in it is optional.
+
+`featuredImageDimensions` is the pixel size of the site's default social image (`themeConfig.image`). `Article` and `TechArticle` pages get an `ImageObject` whose URL is the page's `og:image`, falling back to `themeConfig.image`. The plugin does not measure images, so the `ImageObject` states `width` and `height` only when the page's image is the site default. A page with its own image (blog `image:` front matter, a swizzled metadata component) states no dimensions, and neither does any page when `featuredImageDimensions` is unset.
 
 All settings below belong in `themeConfig.structuredData`. The plugin accepts only Docusaurus's `id` in the plugin options object; other keys in `['@stackql/docusaurus-plugin-structured-data', { ... }]` fail the build.
 
@@ -92,7 +96,8 @@ All settings below belong in `themeConfig.structuredData`. The plugin accepts on
 |---|---|---|
 | `excludedRoutes` | string array | `[]`. Exact paths or globs: `*` within a segment, `**` across segments, `?` for one non-slash character. Matches paths both with and without `siteConfig.baseUrl`. |
 | `verbose` | boolean | `false`. Logs route processing and metadata decisions. |
-| `featuredImageDimensions` | `{width: number, height: number}` | No default. Required for article pages; both values must be finite and greater than zero. |
+| `featuredImageDimensions` | `{width: number, height: number}` | Unset. The size of `themeConfig.image`, stated as `ImageObject.width` and `height` only on pages whose image is that default. Both values must be finite and greater than zero. |
+| `nativeStructuredData` | `'ignore'` or `'reuse'` | `'ignore'`. What to do about JSON-LD a page already has; see [Docusaurus's own structured data](#docusauruss-own-structured-data). |
 | `authors` | object keyed by author name | `{}`. Author details for `Article`; see Authors below. |
 | `organization` | object | Overrides or extends the generated `Organization` node. |
 | `website` | object | Overrides or extends the generated `WebSite` node. |
@@ -113,6 +118,66 @@ Each `authors` entry uses `authorId` for the generated person identifier, `url` 
 
 The plugin uses the HTML `author` meta tag as the name, or looks up the first URL in `article:author` when the name is absent. It emits one `Person` only when that name matches an `authors` key; it does not emit a person for each co-author.
 
+### Docusaurus's own structured data
+
+The classic theme writes JSON-LD of its own into `<head>`, in `<script data-rh="true" type="application/ld+json">` blocks:
+
+| Page | Theme node |
+|---|---|
+| Docs pages with a sidebar breadcrumb | `BreadcrumbList` built from the sidebar, linked items only, no `@id` (Docusaurus 3.8 and later) |
+| Blog posts | `BlogPosting` with the post URL as its `@id`, plus `author`, `image`, `datePublished` and `isPartOf` the `Blog` |
+| Blog list pages | `Blog` with its `blogPost` entries |
+
+`nativeStructuredData` sets what the plugin does about them.
+
+`'ignore'` (the default) adds the plugin's graph without looking at them, as 1.7 and earlier did. A docs page then has two `BreadcrumbList` nodes with different items, and a blog post has a `BlogPosting` and an `Article` for the same post.
+
+`'reuse'` leaves out the nodes a page already has:
+
+- A page with a `BreadcrumbList` gets no breadcrumb from the plugin. `WebPage.breadcrumb` is dropped, because the theme's list has no `@id` to reference; a list that does have an `@id` is referenced. Pages without one (blog pages, custom pages, a JSX home page) keep the plugin's breadcrumb.
+- A page the plugin would give an `Article` or `TechArticle`, and that already has a `BlogPosting` or another `Article` subtype, gets no `Article`, `ImageObject` or `Person` from the plugin. `WebPage.mainEntity` references the existing node by its `@id`, and the plugin adds a node with that same `@id` and no `@type`, carrying `mainEntityOfPage` (the `WebPage`) plus `publisher` and `dateModified` where the existing node does not state them. Nodes that share an `@id` are one node in JSON-LD, so the page has one article, connected to the plugin's `WebPage` and `Organization`. An existing article with no `@id` is still not duplicated, but cannot be linked.
+- Everything else is unchanged: `Organization`, `WebSite`, `WebPage`, `TechArticle` on docs, `SoftwareSourceCode`, and the opt-in `FAQPage`, `HowTo` and `SoftwareApplication` nodes. On a page whose article is reused, `mainEntity` linking to an opt-in node goes on the added node.
+
+```js
+themeConfig: {
+  structuredData: {
+    nativeStructuredData: 'reuse',
+    // ...
+  }
+}
+```
+
+A blog post then carries the theme's block as written, and this from the plugin (abbreviated):
+
+```json
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebPage",
+      "@id": "https://example.com/blog/post/#webpage",
+      "breadcrumb": { "@id": "https://example.com/blog/post/#breadcrumb" },
+      "mainEntity": { "@id": "https://example.com/blog/post" }
+    },
+    {
+      "@id": "https://example.com/blog/post",
+      "mainEntityOfPage": { "@id": "https://example.com/blog/post/#webpage" },
+      "publisher": { "@id": "https://example.com/#organization" },
+      "dateModified": "2024-01-15T00:00:00.000Z"
+    },
+    { "@type": "BreadcrumbList", "@id": "https://example.com/blog/post/#breadcrumb", "...": "..." },
+    { "@type": "WebSite", "@id": "https://example.com/#website", "...": "..." },
+    { "@type": "Organization", "@id": "https://example.com/#organization", "...": "..." }
+  ]
+}
+```
+
+Notes:
+
+- The decision is made per page from the built HTML, not from the Docusaurus version: the plugin reads every `application/ld+json` script on the page and looks at its top-level nodes, including the members of a top-level `@graph`. Older Docusaurus versions, sites with breadcrumbs turned off and swizzled themes are handled the same way, and so is JSON-LD you add yourself. Nested nodes do not count: the `BlogPosting` entries inside a blog list page's `Blog` describe other pages.
+- The plugin never removes or edits those blocks. react-helmet owns tags with `data-rh="true"` and restores a changed one on hydration, so the built HTML and the hydrated page would disagree. For the same reason the plugin's own script has no `data-rh`.
+- With `'reuse'` a site has no need for `authors` (the theme's `BlogPosting` carries the author) or for `breadcrumbLabelMap` entries covering docs.
+
 ## Config Example
 
 Example `structuredData` block inside `themeConfig`, covering all top-level options:
@@ -127,6 +192,7 @@ structuredData: {
   techArticleRoutePrefixes: ['/docs/'],
   techArticleDocsInstances: [],
   breadcrumbLinkAncestors: false,
+  nativeStructuredData: 'ignore',
   speakable: {
     cssSelector: ['h1', 'article p:first-of-type', '[data-speakable]'],
   },
@@ -375,6 +441,11 @@ The `docs` segment defaults to `Documentation`; other unmapped docs roots
 use their path segment. Other ancestor segments are folded into the leaf name
 (`Command Line Usage - exec`), since a `ListItem` needs a URL and most
 category segments have no page.
+
+With `nativeStructuredData: 'reuse'`, a page that already has a
+`BreadcrumbList` (docs pages on Docusaurus 3.8 and later) keeps that one and
+gets none from the plugin; see
+[Docusaurus's own structured data](#docusauruss-own-structured-data).
 
 Set `breadcrumbLinkAncestors: true` to turn every ancestor that is itself a
 built route (a category index page) into its own crumb with a URL:
@@ -665,7 +736,8 @@ non-empty name and at least one step with non-empty `name` and `text`.
 Software application payloads must be `true` or an object; supplied
 `applicationCategory` values must be in the plugin's supported list.
 An invalid `softwareSourceCode.codeRepository`, malformed image dimensions,
-or missing image dimensions on an article page also fails the build.
+or a `nativeStructuredData` value other than `'ignore'` or `'reuse'` also
+fails the build.
 
 These checks validate selected inputs, not the full schema.org vocabulary
 or search-engine eligibility. Optional fields and pass-through properties
@@ -675,7 +747,7 @@ still need appropriate values.
 
 ```bash
 npm install
-npm test   # node --test: node builders, validators, dates, breadcrumbs, route matching, plugin options
+npm test   # node --test: node builders, validators, dates, breadcrumbs, route matching, plugin options, both nativeStructuredData modes
 ```
 
-The pure logic lives in `src/lib.js`; `src/index.js` is the Docusaurus lifecycle around it.
+The pure logic lives in `src/lib.js`; `src/index.js` is the Docusaurus lifecycle around it. `test/fixtures/site` holds four pages with the `<head>` Docusaurus 3.9 renders, the theme's own JSON-LD included, and `test/fixtures/graphs-1.7.1.json` is what plugin 1.7.1 wrote for them: the default output is compared against it.

@@ -12,6 +12,7 @@ const {
     validateSoftwareSourceCode,
     validateTechArticleRoutePrefixes,
     validateFeaturedImageDimensions,
+    validateNativeStructuredData,
     validatePluginOptions,
     buildFaqNode,
     buildHowToNode,
@@ -19,6 +20,9 @@ const {
     buildSoftwareSourceCodeNode,
     buildSpeakableSpec,
     normalizeOrganization,
+    findNativeNodes,
+    buildNativeArticleSupplement,
+    isSiteDefaultImage,
     resolveDates,
     normalizePermalink,
     routeMatcher,
@@ -236,9 +240,19 @@ module.exports = function (context, options) {
     const speakableEnabledByDefault = speakableConfig === undefined || speakableConfig !== false;
     const defaultSpeakableSpec = speakableEnabledByDefault ? buildSpeakableSpec(speakableConfig) : null;
 
-    // Validated up front so a bad block fails at config time; a missing
-    // block is reported the first time an article page needs it.
-    validateFeaturedImageDimensions(structuredData.featuredImageDimensions, null);
+    // Validated up front so a bad block fails at config time. The block is
+    // optional: it is the size of the site's default image
+    // (themeConfig.image), and without it no ImageObject states dimensions.
+    validateFeaturedImageDimensions(structuredData.featuredImageDimensions);
+    const featuredImageDimensions = structuredData.featuredImageDimensions || null;
+
+    // 'ignore' (default): add the plugin's graph without looking at JSON-LD
+    // the page already has. 'reuse': leave out the nodes the page already
+    // has (the classic theme's BreadcrumbList on docs pages, its
+    // BlogPosting on blog posts) and link to them instead.
+    validateNativeStructuredData(structuredData.nativeStructuredData);
+    const reuseNative = structuredData.nativeStructuredData === 'reuse';
+
     validateSoftwareApplicationDefaults(structuredData.softwareApplication);
     validateSoftwareSourceCode(structuredData.softwareSourceCode);
     const softwareApplicationDefaults = structuredData.softwareApplication || null;
@@ -598,6 +612,29 @@ module.exports = function (context, options) {
             verbose ? console.log(`webPageType: ${webPageType}, isTechArticle: ${isTechArticle}, isArticle: ${isArticle}`): null;
             verbose ? console.log(`webPageImage: ${webPageImage}`): null;
 
+            // JSON-LD the page already carries, decided per page from the
+            // built HTML rather than from the Docusaurus version, so a site
+            // with breadcrumbs turned off or a swizzled theme is handled the
+            // same way. Read only in 'reuse' mode. The blocks themselves are
+            // never removed or edited: the theme's carry data-rh="true", and
+            // react-helmet puts a changed block back on hydration.
+            let nativeBreadcrumb = null;
+            let nativeArticle = null;
+            if (reuseNative) {
+                const blocks = Array.from(
+                    doc.querySelectorAll('script[type="application/ld+json"]'),
+                    (script) => script.textContent,
+                );
+                const found = findNativeNodes(blocks, (err) => {
+                    verbose ? console.log(`[structured-data] route ${route}: skipping a JSON-LD block that is not valid JSON (${err.message})`): null;
+                });
+                nativeBreadcrumb = found.breadcrumb;
+                // An article node only stands in for one the plugin would
+                // have emitted for this page itself.
+                nativeArticle = isPrimaryArticle ? found.article : null;
+                verbose ? console.log(`native BreadcrumbList: ${Boolean(nativeBreadcrumb)}, native article: ${nativeArticle ? nativeArticle['@type'] : false}`): null;
+            }
+
             if(isArticle){
 
                 verbose ? console.log(`articleAuthorUrl: ${articleAuthorUrl}`): null;
@@ -711,9 +748,18 @@ module.exports = function (context, options) {
                 delete webPageData['datePublished'];
             }
             webPageData['dateModified'] = dateModified;
-            webPageData['breadcrumb'] = {
-                '@id': `${idBase}/#breadcrumb`
-            };
+            if (!nativeBreadcrumb) {
+                webPageData['breadcrumb'] = {
+                    '@id': `${idBase}/#breadcrumb`
+                };
+            } else if (typeof nativeBreadcrumb['@id'] === 'string' && nativeBreadcrumb['@id']) {
+                webPageData['breadcrumb'] = {
+                    '@id': nativeBreadcrumb['@id']
+                };
+            } else {
+                // The theme's BreadcrumbList has no @id to point at.
+                delete webPageData['breadcrumb'];
+            }
             webPageData['potentialAction'] = [
                 {
                     '@type': 'ReadAction',
@@ -752,14 +798,27 @@ module.exports = function (context, options) {
             let articleData;
             let imageObjectData;
             let personData;
+            let articleSupplement = null;
 
-            if(isPrimaryArticle){
+            if (nativeArticle) {
+
+                // The page has its own article node: no Article, ImageObject
+                // or Person from the plugin. The WebPage points at that
+                // node, and what it lacks is added under the same @id.
+                verbose ? console.log(`Reusing the page's ${nativeArticle['@type']} node...`): null;
+
+                articleSupplement = buildNativeArticleSupplement(nativeArticle, {
+                    webPageId: `${idBase}/#webpage`,
+                    organizationId: `${baseUrl}/#organization`,
+                    dateModified,
+                });
+                if (articleSupplement) {
+                    webPageData['mainEntity'] = { '@id': articleSupplement['@id'] };
+                }
+
+            } else if(isPrimaryArticle){
 
                 verbose ? console.log(`Adding ${isTechArticle ? 'TechArticle' : 'Article'} data...`): null;
-
-                // The ImageObject needs real dimensions; say which option
-                // is missing rather than emitting width: undefined.
-                validateFeaturedImageDimensions(structuredData.featuredImageDimensions, `route "${route}"`);
 
                 // get word count
                 let wordCount = 0;
@@ -824,9 +883,15 @@ module.exports = function (context, options) {
                     url: `${webPageImage}`,
                     contentUrl: `${webPageImage}`,
                     caption: `${webPageTitle}`,
-                    width: structuredData.featuredImageDimensions.width,
-                    height: structuredData.featuredImageDimensions.height,
                 };
+                // featuredImageDimensions is the size of the site's default
+                // image. A page with its own image (blog `image:` front
+                // matter, a swizzled metadata component) states no size
+                // rather than the size of a different file.
+                if (featuredImageDimensions && isSiteDefaultImage(webPageImage, themeConfig.image, baseUrl, siteBaseUrl)) {
+                    imageObjectData.width = featuredImageDimensions.width;
+                    imageObjectData.height = featuredImageDimensions.height;
+                }
 
                 // person data (Article only; TechArticle has no author concept)
                 if (isArticle && articleAuthorName && authors[articleAuthorName]) {
@@ -870,7 +935,8 @@ module.exports = function (context, options) {
 
             // graph linking - primary entity's mainEntity points at the secondary @id
             // priority: HowTo > FAQPage > SoftwareApplication
-            const primary = articleData || webPageData;
+            // (a reused article is the primary through its supplement node)
+            const primary = articleData || articleSupplement || webPageData;
             if (howToNode) {
                 primary.mainEntity = { '@id': howToNode['@id'] };
             } else if (faqNode) {
@@ -889,20 +955,15 @@ module.exports = function (context, options) {
             data['@context'] = 'https://schema.org';
             data['@graph'] = [];
 
-            if (isPrimaryArticle) {
-                data['@graph'].push(articleData);
-                data['@graph'].push(webPageData);
-                data['@graph'].push(imageObjectData);
-                data['@graph'].push(breadcrumbData);
-                data['@graph'].push(webSiteData);
-                data['@graph'].push(orgData);
-                if (personData) data['@graph'].push(personData);
-            } else {
-                data['@graph'].push(webPageData);
-                data['@graph'].push(breadcrumbData);
-                data['@graph'].push(webSiteData);
-                data['@graph'].push(orgData);
-            }
+            if (articleData) data['@graph'].push(articleData);
+            data['@graph'].push(webPageData);
+            if (imageObjectData) data['@graph'].push(imageObjectData);
+            if (articleSupplement) data['@graph'].push(articleSupplement);
+            // the page's own BreadcrumbList stands in for the plugin's
+            if (!nativeBreadcrumb) data['@graph'].push(breadcrumbData);
+            data['@graph'].push(webSiteData);
+            data['@graph'].push(orgData);
+            if (personData) data['@graph'].push(personData);
 
             if (softwareSourceCodeData) data['@graph'].push(softwareSourceCodeData);
             if (faqNode) data['@graph'].push(faqNode);

@@ -26,6 +26,13 @@ test('a bad featuredImageDimensions block fails at construction', () => {
   assert.throws(() => plugin(context({ authors: {}, featuredImageDimensions: { width: 100 } })), /featuredImageDimensions must be/);
 });
 
+test('nativeStructuredData is validated at construction', () => {
+  assert.throws(() => plugin(context({ authors: {}, nativeStructuredData: 'merge' })), /nativeStructuredData must be "ignore" or "reuse", got "merge"/);
+  for (const nativeStructuredData of [undefined, 'ignore', 'reuse']) {
+    assert.doesNotThrow(() => plugin(context({ authors: {}, nativeStructuredData })));
+  }
+});
+
 const pageWith = (head = '') =>
   `<!doctype html><html><head><title>Intro | Site</title><meta name="description" content="About intro">${head}</head><body><h1>Intro</h1></body></html>`;
 const page = pageWith();
