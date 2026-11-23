@@ -196,6 +196,35 @@ function validateNativeStructuredData(mode) {
     );
 }
 
+// themeConfig.structuredData.organization['@id']: optional. A site that is
+// part of a larger property names the parent's Organization here, and every
+// reference to the organization follows it, so the value has to be an IRI
+// that resolves the same from any page: absolute, http or https.
+function validateOrganizationId(org) {
+    if (!org || typeof org !== 'object' || org['@id'] === undefined) return;
+    const id = org['@id'];
+    let parsed = null;
+    if (typeof id === 'string') {
+        try {
+            parsed = new URL(id);
+        } catch {
+            parsed = null;
+        }
+    }
+    if (!parsed || (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')) {
+        throw new Error(
+            `${TAG} themeConfig.structuredData.organization['@id'] must be an absolute http(s) IRI (e.g. "https://example.com/#organization"), got ${JSON.stringify(id)}`
+        );
+    }
+}
+
+// The @id of the Organization node and of every reference to it: the
+// configured organization['@id'], else <siteConfig.url>/#organization.
+function resolveOrganizationId(org, baseUrl) {
+    if (org && typeof org === 'object' && typeof org['@id'] === 'string') return org['@id'];
+    return `${baseUrl}/#organization`;
+}
+
 // Docusaurus hands every plugin an options object; this one is configured
 // under themeConfig.structuredData only. Anything else passed as a plugin
 // option used to be ignored silently, which hid misplaced configuration.
@@ -692,6 +721,8 @@ module.exports = {
     validateTechArticleRoutePrefixes,
     validateFeaturedImageDimensions,
     validateNativeStructuredData,
+    validateOrganizationId,
+    resolveOrganizationId,
     validatePluginOptions,
     buildFaqNode,
     buildHowToNode,

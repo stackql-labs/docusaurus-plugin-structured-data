@@ -99,7 +99,7 @@ All settings below belong in `themeConfig.structuredData`. The plugin accepts on
 | `featuredImageDimensions` | `{width: number, height: number}` | Unset. The size of `themeConfig.image`, stated as `ImageObject.width` and `height` only on pages whose image is that default. Both values must be finite and greater than zero. |
 | `nativeStructuredData` | `'ignore'` or `'reuse'` | `'ignore'`. What to do about JSON-LD a page already has; see [Docusaurus's own structured data](#docusauruss-own-structured-data). |
 | `authors` | object keyed by author name | `{}`. Author details for `Article`; see Authors below. |
-| `organization` | object | Overrides or extends the generated `Organization` node. |
+| `organization` | object | Overrides or extends the generated `Organization` node. A set `@id` (absolute http(s) IRI) is used by every reference to the organization; see [Organization contact details](#organization-contact-details). |
 | `website` | object | Overrides or extends the generated `WebSite` node. |
 | `webpage` | object | Extends `WebPage`. `inLanguage` defaults to `en-US` on the default locale and to the locale's `htmlLang` in every other locale of an i18n site; `datePublished` is a site-wide fallback. Generated page fields take precedence. |
 | `softwareSourceCode` | object | Unset. Emits a site-wide node when configured; requires an HTTP(S) `codeRepository` URL. |
@@ -308,6 +308,18 @@ contactPoint: {
   email: 'info@example.com',
 },
 ```
+
+A site that belongs to a larger property (a product microsite on its own subdomain, say) can name the parent's Organization instead of describing a second one. Set `@id`, `name` and `url` to the values the parent site's graph carries, and `logo` and `sameAs` too if you want the node to match it:
+
+```js
+organization: {
+  '@id': 'https://example.com/#organization',
+  name: 'Example',
+  url: 'https://example.com',
+},
+```
+
+The Organization node and every reference to it (`WebSite.publisher`, the `Article` and `TechArticle` `publisher`, and the `publisher` added to a reused native article) use that `@id`. It must be an absolute `http` or `https` IRI; anything else fails the build. Without it the `@id` is `<siteConfig.url>/#organization`.
 
 ### Open-source product: SoftwareSourceCode and SoftwareApplication
 
@@ -736,8 +748,9 @@ non-empty name and at least one step with non-empty `name` and `text`.
 Software application payloads must be `true` or an object; supplied
 `applicationCategory` values must be in the plugin's supported list.
 An invalid `softwareSourceCode.codeRepository`, malformed image dimensions,
-or a `nativeStructuredData` value other than `'ignore'` or `'reuse'` also
-fails the build.
+an `organization['@id']` that is not an absolute http(s) IRI, or a
+`nativeStructuredData` value other than `'ignore'` or `'reuse'` also fails
+the build.
 
 These checks validate selected inputs, not the full schema.org vocabulary
 or search-engine eligibility. Optional fields and pass-through properties
@@ -747,7 +760,7 @@ still need appropriate values.
 
 ```bash
 npm install
-npm test   # node --test: node builders, validators, dates, breadcrumbs, route matching, plugin options, both nativeStructuredData modes
+npm test   # node --test: node builders, validators, dates, breadcrumbs, route matching, plugin options, both nativeStructuredData modes, organization @id
 ```
 
 The pure logic lives in `src/lib.js`; `src/index.js` is the Docusaurus lifecycle around it. `test/fixtures/site` holds four pages with the `<head>` Docusaurus 3.9 renders, the theme's own JSON-LD included, and `test/fixtures/graphs-1.7.1.json` is what plugin 1.7.1 wrote for them: the default output is compared against it.

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.9.0
+
+A site that belongs to a larger property can name the parent's Organization. The default output is unchanged: a configuration without `organization['@id']` emits the same graph as 1.8.0, byte for byte (`test/fixtures/graphs-1.7.1.json` still passes).
+
+Added:
+
+- `themeConfig.structuredData.organization['@id']` is honoured by every reference to the organization: `WebSite.publisher`, the `Article` and `TechArticle` `publisher`, and the `publisher` the native-article supplement adds in `'reuse'` mode. The node's own `@id` could already be overridden (the block is spread last), but the references stayed `<siteConfig.url>/#organization`, so an override left `publisher` pointing at a node that was not in the graph. Set `@id`, `name` and `url` to the parent site's values; see [Organization contact details](README.md#organization-contact-details).
+- A set `organization['@id']` must be an absolute `http` or `https` IRI. Anything else (a relative or fragment-only reference, another scheme, a non-string) fails the build at config time with a message naming the option.
+- Tests: an override on another origin in both `nativeStructuredData` modes (every `publisher` references it and the default id appears nowhere on the page), the default id set explicitly (same output as unset), and the validator.
+
 ## 1.8.0
 
 Composing with the JSON-LD Docusaurus writes itself, and image dimensions that describe the right image ([#4](https://github.com/stackql-labs/docusaurus-plugin-structured-data/issues/4)). With no new option set, a 1.7.1 configuration emits the same graph except where listed under Fixed.

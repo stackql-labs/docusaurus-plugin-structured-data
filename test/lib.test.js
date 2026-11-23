@@ -205,6 +205,24 @@ test('routeMatcher: exact routes and globs, with or without a trailing slash', (
   assert.equal(lib.routeMatcher(undefined)('/x'), false);
 });
 
+test("validateOrganizationId: optional, but a set organization['@id'] must be an absolute http(s) IRI", () => {
+  for (const org of [undefined, null, {}, { name: 'X' }, { '@id': 'https://stackql.io/#organization' }, { '@id': 'http://a.b/#o' }]) {
+    assert.doesNotThrow(() => lib.validateOrganizationId(org), JSON.stringify(org));
+  }
+  for (const id of ['/#organization', 'stackql.io/#organization', 'ftp://a.b/#o', '', null, 1]) {
+    assert.throws(() => lib.validateOrganizationId({ '@id': id }), /organization\['@id'\] must be an absolute http\(s\) IRI/, JSON.stringify(id));
+  }
+});
+
+test("resolveOrganizationId: organization['@id'] when set, else <siteConfig.url>/#organization", () => {
+  assert.equal(lib.resolveOrganizationId(undefined, 'https://example.com'), 'https://example.com/#organization');
+  assert.equal(lib.resolveOrganizationId({ name: 'X' }, 'https://example.com'), 'https://example.com/#organization');
+  assert.equal(
+    lib.resolveOrganizationId({ '@id': 'https://stackql.io/#organization' }, 'https://example.com'),
+    'https://stackql.io/#organization',
+  );
+});
+
 test('validatePluginOptions rejects anything but id', () => {
   assert.doesNotThrow(() => lib.validatePluginOptions(undefined));
   assert.doesNotThrow(() => lib.validatePluginOptions({ id: 'default' }));
