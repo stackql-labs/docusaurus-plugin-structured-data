@@ -13,6 +13,8 @@ const {
     validateTechArticleRoutePrefixes,
     validateFeaturedImageDimensions,
     validateNativeStructuredData,
+    validateOrganizationId,
+    resolveOrganizationId,
     validatePluginOptions,
     buildFaqNode,
     buildHowToNode,
@@ -257,6 +259,13 @@ module.exports = function (context, options) {
     validateSoftwareSourceCode(structuredData.softwareSourceCode);
     const softwareApplicationDefaults = structuredData.softwareApplication || null;
 
+    // The Organization's @id, used by the node itself and by every
+    // reference to it (WebSite and Article publisher, the native-article
+    // supplement). A site that belongs to a larger property sets it to the
+    // parent's; the default is <siteConfig.url>/#organization.
+    validateOrganizationId(structuredData.organization);
+    const organizationId = resolveOrganizationId(structuredData.organization, siteConfig.url);
+
     // Exact routes or globs ("/providers/*", "/registry/**"), matched against
     // the route with and without siteConfig.baseUrl.
     const isExcludedRoute = routeMatcher(structuredData.excludedRoutes || []);
@@ -278,7 +287,7 @@ module.exports = function (context, options) {
 
     const orgData = {
         '@type': 'Organization',
-        '@id': `${baseUrl}/#organization`,
+        '@id': organizationId,
         name: `${orgName}`,
         url: `${baseUrl}`,
         ...normalizeOrganization(structuredData.organization, (w) => console.warn(w)),
@@ -298,7 +307,7 @@ module.exports = function (context, options) {
         url: `${baseUrl}`,
         description: `${siteConfig.tagline}`,
         publisher: {
-            '@id': `${baseUrl}/#organization`,
+            '@id': organizationId,
         },
         potentialAction: [
             {
@@ -809,7 +818,7 @@ module.exports = function (context, options) {
 
                 articleSupplement = buildNativeArticleSupplement(nativeArticle, {
                     webPageId: `${idBase}/#webpage`,
-                    organizationId: `${baseUrl}/#organization`,
+                    organizationId,
                     dateModified,
                 });
                 if (articleSupplement) {
@@ -852,7 +861,7 @@ module.exports = function (context, options) {
                     },
                     wordCount: wordCount,
                     publisher: {
-                        '@id': `${baseUrl}/#organization`
+                        '@id': organizationId
                     },
                     image: {
                         '@id': `${idBase}/#primaryimage`
